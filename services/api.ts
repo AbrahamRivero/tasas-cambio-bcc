@@ -5,7 +5,19 @@ const BASE_URL = 'https://api.bc.gob.cu/v1/tasas-de-cambio';
 class ApiService {
   private async request<T>(endpoint: string): Promise<ApiResponse<T>> {
     try {
-      const response = await fetch(`${BASE_URL}${endpoint}`);
+      // Add cache-busting timestamp and anti-cache headers
+      const timestamp = Date.now();
+      const url = `${BASE_URL}${endpoint}${endpoint.includes('?') ? '&' : '?'}_t=${timestamp}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+          'Content-Type': 'application/json',
+        },
+      });
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -18,10 +30,29 @@ class ApiService {
         data,
       };
     } catch (error) {
+      let errorMessage = 'Error desconocido';
+      
+      if (error instanceof Error) {
+        // Handle specific network errors
+        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          errorMessage = 'Error de conexión. Verifique su acceso a internet.';
+        } else if (error.message.includes('timeout')) {
+          errorMessage = 'Tiempo de espera agotado. Intente nuevamente.';
+        } else if (error.message.includes('HTTP error! status: 404')) {
+          errorMessage = 'Servicio no disponible. Intente más tarde.';
+        } else if (error.message.includes('HTTP error! status: 500')) {
+          errorMessage = 'Error del servidor. Intente más tarde.';
+        } else if (error.message.includes('HTTP error! status: 503')) {
+          errorMessage = 'Servicio en mantenimiento. Intente más tarde.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       return {
         success: false,
         data: {} as T,
-        error: error instanceof Error ? error.message : 'Error desconocido',
+        error: errorMessage,
       };
     }
   }

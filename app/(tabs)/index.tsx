@@ -27,6 +27,7 @@ export default function TasasActivasScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [ultimaActualizacion, setUltimaActualizacion] = useState('');
+  const [ultimaActualizacionReal, setUltimaActualizacionReal] = useState<Date | null>(null);
   const [datosHistoricos, setDatosHistoricos] = useState<TasaCambioHistorico[]>([]);
 
   const colorScheme = useColorScheme();
@@ -47,6 +48,7 @@ export default function TasasActivasScreen() {
       if (tasasResponse.success) {
         setTasas([tasasResponse.data]);
         setUltimaActualizacion(tasasResponse.data.fechaHoy);
+        setUltimaActualizacionReal(new Date()); // Track when we actually fetched the data
         
         // Cargar datos históricos si están disponibles
         if (historicoResponse.success) {
@@ -65,6 +67,13 @@ export default function TasasActivasScreen() {
 
   useEffect(() => {
     cargarTasas();
+    
+    // Set up automatic refresh every 5 minutes
+    const interval = setInterval(() => {
+      cargarTasas();
+    }, 5 * 60 * 1000); // 5 minutes in milliseconds
+    
+    return () => clearInterval(interval);
   }, [cargarTasas]);
 
   const handleRefresh = useCallback(() => {
@@ -150,9 +159,13 @@ export default function TasasActivasScreen() {
                   <View style={styles.statusDot} />
                   <Text style={styles.statusText}>En vivo</Text>
                 </View>
-                <Text style={styles.heroDate}>
-                  {ultimaActualizacion ? formatDate(ultimaActualizacion) : 'Cargando...'}
-                </Text>
+<Text style={styles.heroDate}>
+                   {ultimaActualizacionReal 
+                     ? `Actualizado: ${ultimaActualizacionReal.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`
+                     : ultimaActualizacion 
+                       ? formatDate(ultimaActualizacion) 
+                       : 'Cargando...'}
+                 </Text>
               </View>
             </View>
           </LinearGradient>
