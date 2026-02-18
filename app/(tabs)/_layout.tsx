@@ -26,12 +26,12 @@ export default function TabLayout() {
           bottom: insets.bottom,
           left: 0,
           right: 0,
-          height: Platform.OS === 'ios' ? 88 + insets.bottom : 68 + insets.bottom,
+          height: Platform.OS === 'ios' ? 92 : 72,
           backgroundColor: isDark ? 'rgba(22, 27, 34, 0.95)' : 'rgba(255, 255, 255, 0.95)',
           borderTopWidth: 0,
           paddingTop: 8,
           paddingHorizontal: 16,
-          paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
+          paddingBottom: 8,
           ...Platform.select({
             ios: {
               shadowColor: '#000',

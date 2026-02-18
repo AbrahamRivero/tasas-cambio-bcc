@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: Spacing.xl + 80,
+    paddingBottom: Spacing['4xl'] + 100,
   },
 
   // Hero Section
@@ -483,7 +483,8 @@ const styles = StyleSheet.create({
   // Footer Section
   footerSection: {
     paddingHorizontal: Spacing.lg,
-    marginTop: Spacing['2xl'],
+    marginTop: Spacing['3xl'],
+    marginBottom: Spacing.xl,
   },
   footerCard: {
     flexDirection: 'row',
