@@ -675,7 +675,7 @@ export const Calculator: React.FC<CalculadoraProps> = ({
                 </Text>
             </View>
 
-            <View style={{ height: 80 }} />
+            <View style={{ height: 100 }} />
         </ScrollView>
     );
 };
