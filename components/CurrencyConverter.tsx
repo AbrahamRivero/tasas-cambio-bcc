@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { BorderRadius, Colors, Shadows, Spacing, Typography } from '../constants/theme';
 import { useColorScheme } from '../hooks/use-color-scheme';
-import { formatCurrency, getMonedaFlag } from '../utils/formatters';
+import { formatCurrency, getCurrencyFlag } from '../utils/formatters';
 
 // ============================================
 // Types & Interfaces
@@ -24,7 +24,7 @@ import { formatCurrency, getMonedaFlag } from '../utils/formatters';
 type OperationType = 'compra' | 'venta';
 type RateType = 'oficial' | 'publica' | 'especial';
 
-interface TasaData {
+interface RateData {
     codigoMoneda: string;
     nombreMoneda: string;
     tasaOficial: number;
@@ -32,8 +32,8 @@ interface TasaData {
     tasaEspecial: number;
 }
 
-interface CalculadoraProps {
-    tasas: TasaData[];
+interface ConverterProps {
+    tasas: RateData[];
     defaultMoneda?: string;
 }
 
@@ -41,16 +41,16 @@ interface CalculadoraProps {
 // Sub Components
 // ============================================
 
-interface MonedaSelectorProps {
-    tasas: TasaData[];
-    selectedMoneda: string;
+interface CurrencySelectorProps {
+    tasas: RateData[];
+    selectedCurrency: string;
     onSelect: (codigo: string) => void;
     colors: typeof Colors.light;
 }
 
-const MonedaSelector: React.FC<MonedaSelectorProps> = ({
+const CurrencySelector: React.FC<CurrencySelectorProps> = ({
     tasas,
-    selectedMoneda,
+    selectedCurrency,
     onSelect,
     colors,
 }) => (
@@ -60,7 +60,7 @@ const MonedaSelector: React.FC<MonedaSelectorProps> = ({
         contentContainerStyle={styles.monedaSelectorContainer}
     >
         {tasas.map((tasa) => {
-            const isSelected = selectedMoneda === tasa.codigoMoneda;
+            const isSelected = selectedCurrency === tasa.codigoMoneda;
             return (
                 <Pressable
                     key={tasa.codigoMoneda}
@@ -80,7 +80,7 @@ const MonedaSelector: React.FC<MonedaSelectorProps> = ({
                     accessibilityState={{ selected: isSelected }}
                     accessibilityLabel={`Seleccionar ${tasa.nombreMoneda}`}
                 >
-                    <Text style={styles.monedaFlag}>{getMonedaFlag(tasa.codigoMoneda)}</Text>
+                    <Text style={styles.monedaFlag}>{getCurrencyFlag(tasa.codigoMoneda)}</Text>
                     <Text style={[
                         styles.monedaCode,
                         { color: isSelected ? colors.textInverse : colors.text }
@@ -364,14 +364,14 @@ const QuickAmountButtons: React.FC<QuickAmountProps> = ({
 // Main Component
 // ============================================
 
-export const CurrencyConverter: React.FC<CalculadoraProps> = ({
+export const CurrencyConverter: React.FC<ConverterProps> = ({
     tasas,
     defaultMoneda,
 }) => {
     const colorScheme = useColorScheme();
     const colors = Colors[colorScheme ?? 'light'];
 
-    const [selectedMoneda, setSelectedMoneda] = useState(defaultMoneda || tasas[0]?.codigoMoneda || 'USD');
+    const [selectedCurrency, setSelectedMoneda] = useState(defaultMoneda || tasas[0]?.codigoMoneda || 'USD');
     const [selectedOperation, setSelectedOperation] = useState<OperationType>('compra');
     const [selectedRateType, setSelectedRateType] = useState<RateType>('especial');
     const [inputValue, setInputValue] = useState('');
@@ -383,8 +383,8 @@ export const CurrencyConverter: React.FC<CalculadoraProps> = ({
     };
 
     const selectedTasa = useMemo(() =>
-        tasas.find(t => t.codigoMoneda === selectedMoneda) || tasas[0],
-        [tasas, selectedMoneda]
+        tasas.find(t => t.codigoMoneda === selectedCurrency) || tasas[0],
+        [tasas, selectedCurrency]
     );
 
     const currentRate = useMemo(() => {
@@ -426,8 +426,8 @@ export const CurrencyConverter: React.FC<CalculadoraProps> = ({
         ? [100, 500, 1000, 5000]
         : [10, 50, 100, 500];
 
-    const inputCurrency = selectedOperation === 'compra' ? 'CUP' : selectedMoneda;
-    const outputCurrency = selectedOperation === 'compra' ? selectedMoneda : 'CUP';
+    const inputCurrency = selectedOperation === 'compra' ? 'CUP' : selectedCurrency;
+    const outputCurrency = selectedOperation === 'compra' ? selectedCurrency : 'CUP';
 
     return (
         <ScrollView
@@ -470,9 +470,9 @@ export const CurrencyConverter: React.FC<CalculadoraProps> = ({
                     <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
                         Selecciona la moneda
                     </Text>
-                    <MonedaSelector
+                    <CurrencySelector
                         tasas={tasas}
-                        selectedMoneda={selectedMoneda}
+                        selectedCurrency={selectedCurrency}
                         onSelect={setSelectedMoneda}
                         colors={colors}
                     />
@@ -503,7 +503,7 @@ export const CurrencyConverter: React.FC<CalculadoraProps> = ({
                     <View style={styles.rateInfoRow}>
                         <Ionicons name="information-circle-outline" size={14} color={colors.textMuted} />
                         <Text style={[styles.rateInfoText, { color: colors.textMuted }]}>
-                            Tasa actual: 1 {selectedMoneda} = {formatCurrency(currentRate, 2)} CUP
+                            Tasa actual: 1 {selectedCurrency} = {formatCurrency(currentRate, 2)} CUP
                             {selectedOperation === 'compra' ? ' (+2%)' : ' (-2%)'}
                         </Text>
                     </View>
@@ -514,7 +514,7 @@ export const CurrencyConverter: React.FC<CalculadoraProps> = ({
                     <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
                         {selectedOperation === 'compra'
                             ? 'Monto en CUP a cambiar'
-                            : `Monto en ${selectedMoneda} a vender`
+                            : `Monto en ${selectedCurrency} a vender`
                         }
                     </Text>
                     <View style={[
@@ -600,7 +600,7 @@ export const CurrencyConverter: React.FC<CalculadoraProps> = ({
                             Moneda seleccionada
                         </Text>
                         <Text style={[styles.infoValue, { color: colors.text }]}>
-                            {getMonedaFlag(selectedMoneda)} {selectedTasa?.nombreMoneda}
+                            {getCurrencyFlag(selectedCurrency)} {selectedTasa?.nombreMoneda}
                         </Text>
                     </View>
                     <View style={styles.infoRow}>

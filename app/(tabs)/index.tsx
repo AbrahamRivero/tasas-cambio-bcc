@@ -26,36 +26,36 @@ export default function TasasActivasScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [ultimaActualizacion, setUltimaActualizacion] = useState('');
-  const [ultimaActualizacionReal, setUltimaActualizacionReal] = useState<Date | null>(null);
-  const [datosHistoricos, setDatosHistoricos] = useState<TasaCambioHistorico[]>([]);
+  const [lastUpdate, setLastUpdate] = useState('');
+  const [lastUpdateTimestamp, setLastUpdateTimestamp] = useState<Date | null>(null);
+  const [historicalData, setHistoricalData] = useState<TasaCambioHistorico[]>([]);
 
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
 
-  const cargarTasas = useCallback(async () => {
+const loadRates = useCallback(async () => {
     try {
       setError('');
       setLoading(true);
       
-      // Cargar tasas activas
-      const [tasasResponse, historicoResponse] = await Promise.all([
+      // Load active rates
+      const [ratesResponse, historicalResponse] = await Promise.all([
         apiService.getTasasActivas(),
         apiService.getTasasHistorico()
       ]);
 
-      if (tasasResponse.success) {
-        setTasas([tasasResponse.data]);
-        setUltimaActualizacion(tasasResponse.data.fechaHoy);
-        setUltimaActualizacionReal(new Date()); // Track when we actually fetched the data
+      if (ratesResponse.success) {
+        setTasas([ratesResponse.data]);
+        setLastUpdate(ratesResponse.data.fechaHoy);
+        setLastUpdateTimestamp(new Date()); // Track when we actually fetched the data
         
-        // Cargar datos históricos si están disponibles
-        if (historicoResponse.success) {
-          setDatosHistoricos(historicoResponse.data);
+        // Load historical data if available
+        if (historicalResponse.success) {
+          setHistoricalData(historicalResponse.data);
         }
       } else {
-        setError(tasasResponse.error || 'Error al cargar las tasas de cambio');
+        setError(ratesResponse.error || 'Error al cargar las tasas de cambio');
       }
     } catch {
       setError('Error de conexión. Verifique su internet e intente nuevamente.');
@@ -66,21 +66,21 @@ export default function TasasActivasScreen() {
   }, []);
 
   useEffect(() => {
-    cargarTasas();
+    loadRates();
     
     // Set up automatic refresh every 5 minutes
     const interval = setInterval(() => {
-      cargarTasas();
+      loadRates();
     }, 5 * 60 * 1000); // 5 minutes in milliseconds
     
     return () => clearInterval(interval);
-  }, [cargarTasas]);
+  }, [loadRates]);
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
     setLoading(true);
-    cargarTasas();
-  }, [cargarTasas]);
+    loadRates();
+  }, [loadRates]);
 
   // Calculate stats from tasas
   const stats = React.useMemo(() => {
@@ -160,10 +160,10 @@ export default function TasasActivasScreen() {
                   <Text style={styles.statusText}>En vivo</Text>
                 </View>
 <Text style={styles.heroDate}>
-                   {ultimaActualizacionReal 
-                     ? `Actualizado: ${ultimaActualizacionReal.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`
-                     : ultimaActualizacion 
-                       ? formatDate(ultimaActualizacion) 
+                   {lastUpdateTimestamp 
+                     ? `Actualizado: ${lastUpdateTimestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`
+                     : lastUpdate 
+                       ? formatDate(lastUpdate) 
                        : 'Cargando...'}
                  </Text>
               </View>
@@ -222,8 +222,8 @@ export default function TasasActivasScreen() {
             refreshing={refreshing}
             onRefresh={handleRefresh}
             error={error}
-            onRetry={cargarTasas}
-            datosHistoricos={datosHistoricos}
+            onRetry={loadRates}
+            historicalData={historicalData}
           />
         </View>
 

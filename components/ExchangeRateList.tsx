@@ -8,16 +8,16 @@ import { MONEDAS_PRINCIPALES, TasaCambio, TasaCambioHistorico } from '../types';
 import { formatDateShort } from '../utils/formatters';
 import { ExchangeRateCard } from './ExchangeRateCard';
 
-interface TasaCambioListProps {
+interface ExchangeRateListProps {
   tasas: (TasaCambio | TasaCambioHistorico)[] | null;
   loading?: boolean;
   refreshing?: boolean;
   onRefresh?: () => void;
   error?: string;
   onRetry?: () => void;
-  monedaFiltro?: string;
-  esHistorico?: boolean;
-  datosHistoricos?: TasaCambioHistorico[];
+  currencyFilter?: string;
+  isHistorical?: boolean;
+  historicalData?: TasaCambioHistorico[];
 }
 
 // Loading Component with Fintech Style
@@ -92,12 +92,12 @@ const EmptyState: React.FC<{ message: string }> = ({ message }) => {
 };
 
 // Historico Card Component
-interface HistoricoCardProps {
+interface HistoricalCardProps {
   data: TasaCambioHistorico;
   colors: typeof Colors.light;
 }
 
-const HistoricoCard: React.FC<HistoricoCardProps> = ({ data, colors }) => {
+const HistoricalCard: React.FC<HistoricalCardProps> = ({ data, colors }) => {
   const rates = [
     { label: 'Oficial', value: data.tasaOficial, icon: 'business' as const },
     { label: 'Pública', value: data.tasaPublica, icon: 'people' as const },
@@ -149,16 +149,16 @@ const HistoricoCard: React.FC<HistoricoCardProps> = ({ data, colors }) => {
   );
 };
 
-export const ExchangeRateList: React.FC<TasaCambioListProps> = ({
+export const ExchangeRateList: React.FC<ExchangeRateListProps> = ({
   tasas,
   loading,
   refreshing = false,
   onRefresh,
   error,
   onRetry,
-  monedaFiltro,
-  esHistorico = false,
-  datosHistoricos = [],
+  currencyFilter,
+  isHistorical = false,
+  historicalData = [],
 }) => {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -167,19 +167,19 @@ export const ExchangeRateList: React.FC<TasaCambioListProps> = ({
     return <Loading message="Cargando tasas de cambio..." />;
   }
 
-  const datosTasas: (TasaCambio | TasaCambioHistorico)[] = Array.isArray(tasas) && !esHistorico && tasas.length > 0 && 'tasas' in tasas[0] 
+  const ratesData: (TasaCambio | TasaCambioHistorico)[] = Array.isArray(tasas) && !isHistorical && tasas.length > 0 && 'tasas' in tasas[0] 
     ? (tasas[0] as any)?.tasas || [] 
     : (tasas || []);
 
-  const tasasFiltradas = monedaFiltro && !esHistorico 
-    ? datosTasas.filter((tasa: TasaCambio | TasaCambioHistorico) => {
+  const filteredRates = currencyFilter && !isHistorical 
+    ? ratesData.filter((tasa: TasaCambio | TasaCambioHistorico) => {
         const codigo = (tasa as TasaCambio).codigoMoneda || '';
-        return codigo.toLowerCase() === monedaFiltro.toLowerCase();
+        return codigo.toLowerCase() === currencyFilter.toLowerCase();
       })
-    : datosTasas;
+    : ratesData;
 
-  const tasasMostrar = !esHistorico && !monedaFiltro
-    ? [...tasasFiltradas].sort((a, b) => {
+  const ratesToShow = !isHistorical && !currencyFilter
+    ? [...filteredRates].sort((a, b) => {
         const codigoA = (a as TasaCambio).codigoMoneda || '';
         const codigoB = (b as TasaCambio).codigoMoneda || '';
         
@@ -190,7 +190,7 @@ export const ExchangeRateList: React.FC<TasaCambioListProps> = ({
         if (!esPrincipalA && esPrincipalB) return 1;
         return 0;
       })
-    : tasasFiltradas;
+    : filteredRates;
 
   if (loading) {
     return <Loading message="Cargando tasas de cambio..." />;
@@ -200,12 +200,12 @@ export const ExchangeRateList: React.FC<TasaCambioListProps> = ({
     return <ErrorComponent message={error} onRetry={onRetry} />;
   }
 
-  if (tasasMostrar.length === 0) {
+  if (ratesToShow.length === 0) {
     return (
       <EmptyState 
         message={
-          monedaFiltro 
-            ? `No se encontraron tasas para ${monedaFiltro.toUpperCase()}` 
+          currencyFilter 
+            ? `No se encontraron tasas para ${currencyFilter.toUpperCase()}` 
             : 'No hay tasas de cambio disponibles'
         }
       />
@@ -213,13 +213,13 @@ export const ExchangeRateList: React.FC<TasaCambioListProps> = ({
   }
 
   // Historico rendering
-  if (esHistorico) {
+  if (isHistorical) {
     return (
       <View style={styles.listContainer}>
-        {tasasMostrar.map((tasa: TasaCambio | TasaCambioHistorico, index: number) => {
+        {ratesToShow.map((tasa: TasaCambio | TasaCambioHistorico, index: number) => {
           const historicoTasa = tasa as TasaCambioHistorico;
           return (
-            <HistoricoCard 
+            <HistoricalCard 
               key={historicoTasa.fecha || index}
               data={historicoTasa}
               colors={colors}
@@ -232,20 +232,20 @@ export const ExchangeRateList: React.FC<TasaCambioListProps> = ({
 
    return (
      <View style={styles.listContainer}>
-       {tasasMostrar.map((tasa: TasaCambio | TasaCambioHistorico, index: number) => {
+       {ratesToShow.map((tasa: TasaCambio | TasaCambioHistorico, index: number) => {
          const tasaCambio = tasa as TasaCambio;
          
-         // Filter historical data for this specific currency
-         const historicoMoneda = datosHistoricos.filter(item => 
-           item.fecha && new Date(item.fecha) < new Date(tasaCambio.fechaActivacion)
-         );
-         
-          return (
-            <ExchangeRateCard 
-              key={`${tasaCambio.codigoMoneda}-${tasaCambio.fechaActivacion}-${index}`} 
-              tasa={tasaCambio}
-              historico={historicoMoneda}
-            />
+          // Filter historical data for this specific currency
+          const currencyHistorical = historicalData.filter(item => 
+            item.fecha && new Date(item.fecha) < new Date(tasaCambio.fechaActivacion)
+          );
+          
+           return (
+             <ExchangeRateCard 
+               key={`${tasaCambio.codigoMoneda}-${tasaCambio.fechaActivacion}-${index}`} 
+               tasa={tasaCambio}
+               historicalData={currencyHistorical}
+             />
           );
        })}
      </View>

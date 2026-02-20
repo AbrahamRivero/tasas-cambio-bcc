@@ -34,7 +34,7 @@ export const formatDateShort = (dateString: string, includeTime = false): string
   }
 };
 
-export const getMonedaFlag = (codigo: string): string => {
+export const getCurrencyFlag = (codigo: string): string => {
   const flags: Record<string, string> = {
     USD: '🇺🇸',
     EUR: '🇪🇺',
@@ -54,8 +54,8 @@ export const getMonedaFlag = (codigo: string): string => {
   return flags[codigo.toUpperCase()] || '💱';
 };
 
-export const getTasaCambioColor = (tasa: number): string => {
-  if (tasa < 100) return 'text-success-600';
-  if (tasa < 200) return 'text-warning-600';
+export const getExchangeRateColor = (rate: number): string => {
+  if (rate < 100) return 'text-success-600';
+  if (rate < 200) return 'text-warning-600';
   return 'text-error-600';
 };
