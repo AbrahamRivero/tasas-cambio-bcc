@@ -12,6 +12,7 @@ import {
 import { BorderRadius, Colors, Shadows, Spacing, Typography } from '../constants/theme';
 import { useColorScheme } from '../hooks/use-color-scheme';
 import { TasaCambioHistorico } from '../types';
+import { formatCurrency, formatDateShort, getMonedaFlag } from '../utils/formatters';
 
 // ============================================
 // Types & Interfaces
@@ -34,46 +35,6 @@ interface TasaCambioItemProps {
   selectedRateType?: RateType;
   historico?: TasaCambioHistorico[];
 }
-
-// ============================================
-// Utility Functions
-// ============================================
-
-const getMonedaFlag = (codigo: string): string => {
-  const flags: Record<string, string> = {
-    USD: '🇺🇸',
-    EUR: '🇪🇺',
-    MLC: '🇨🇺',
-    CAD: '🇨🇦',
-    MXN: '🇲🇽',
-    GBP: '🇬🇧',
-    CHF: '🇨🇭',
-    JPY: '🇯🇵',
-    CNY: '🇨🇳',
-  };
-  return flags[codigo] || '💱';
-};
-
-const formatDateShort = (dateString: string): string => {
-  try {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return dateString;
-  }
-};
-
-const formatCurrency = (value: number, decimals = 2): string => {
-  return value.toLocaleString('es-ES', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
-};
 
 // ============================================
 // Sub Components
@@ -189,7 +150,7 @@ const RateTypeSelector: React.FC<RateTypeSelectorProps> = ({
 // Main Component
 // ============================================
 
-export const TasaCambioItem: React.FC<TasaCambioItemProps> = ({
+export const ExchangeRateCard: React.FC<TasaCambioItemProps> = ({
   tasa,
   onRateTypePress,
   selectedRateType = 'especial',
@@ -374,7 +335,7 @@ export const TasaCambioItem: React.FC<TasaCambioItemProps> = ({
         <View style={styles.footerContent}>
           <Ionicons name="time-outline" size={14} color={colors.textMuted} />
           <Text style={[styles.updateText, { color: colors.textMuted }]}>
-            {formatDateShort(tasa.fechaActivacion)}
+            {formatDateShort(tasa.fechaActivacion, true)}
           </Text>
         </View>
         <View style={styles.footerBadge}>
@@ -593,4 +554,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default TasaCambioItem;
+export default ExchangeRateCard;

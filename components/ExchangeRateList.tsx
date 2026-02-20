@@ -5,7 +5,8 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { BorderRadius, Colors, Shadows, Spacing, Typography } from '../constants/theme';
 import { useColorScheme } from '../hooks/use-color-scheme';
 import { MONEDAS_PRINCIPALES, TasaCambio, TasaCambioHistorico } from '../types';
-import { TasaCambioItem } from './TasaCambioItem';
+import { formatDateShort } from '../utils/formatters';
+import { ExchangeRateCard } from './ExchangeRateCard';
 
 interface TasaCambioListProps {
   tasas: (TasaCambio | TasaCambioHistorico)[] | null;
@@ -97,20 +98,6 @@ interface HistoricoCardProps {
 }
 
 const HistoricoCard: React.FC<HistoricoCardProps> = ({ data, colors }) => {
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('es-ES', {
-        weekday: 'short',
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      });
-    } catch {
-      return dateString;
-    }
-  };
-
   const rates = [
     { label: 'Oficial', value: data.tasaOficial, icon: 'business' as const },
     { label: 'Pública', value: data.tasaPublica, icon: 'people' as const },
@@ -128,7 +115,7 @@ const HistoricoCard: React.FC<HistoricoCardProps> = ({ data, colors }) => {
       >
         <View style={styles.historicoDateRow}>
           <Ionicons name="calendar" size={16} color="#FFFFFF" />
-          <Text style={styles.historicoDate}>{formatDate(data.fecha)}</Text>
+          <Text style={styles.historicoDate}>{formatDateShort(data.fecha, true)}</Text>
         </View>
       </LinearGradient>
 
@@ -162,7 +149,7 @@ const HistoricoCard: React.FC<HistoricoCardProps> = ({ data, colors }) => {
   );
 };
 
-export const TasaCambioList: React.FC<TasaCambioListProps> = ({
+export const ExchangeRateList: React.FC<TasaCambioListProps> = ({
   tasas,
   loading,
   refreshing = false,
@@ -253,13 +240,13 @@ export const TasaCambioList: React.FC<TasaCambioListProps> = ({
            item.fecha && new Date(item.fecha) < new Date(tasaCambio.fechaActivacion)
          );
          
-         return (
-           <TasaCambioItem 
-             key={`${tasaCambio.codigoMoneda}-${tasaCambio.fechaActivacion}-${index}`} 
-             tasa={tasaCambio}
-             historico={historicoMoneda}
-           />
-         );
+          return (
+            <ExchangeRateCard 
+              key={`${tasaCambio.codigoMoneda}-${tasaCambio.fechaActivacion}-${index}`} 
+              tasa={tasaCambio}
+              historico={historicoMoneda}
+            />
+          );
        })}
      </View>
    );
@@ -421,4 +408,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default TasaCambioList;
+export default ExchangeRateList;

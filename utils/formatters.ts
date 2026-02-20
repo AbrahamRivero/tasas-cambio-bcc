@@ -1,10 +1,8 @@
-export const formatCurrency = (amount: number, currency: string = 'CUP'): string => {
-  return new Intl.NumberFormat('es-CU', {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
+export const formatCurrency = (value: number, decimals = 2): string => {
+  return value.toLocaleString('es-ES', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
 };
 
 export const formatDate = (dateString: string): string => {
@@ -18,23 +16,42 @@ export const formatDate = (dateString: string): string => {
   }).format(date);
 };
 
-export const formatDateShort = (dateString: string): string => {
-  const date = new Date(dateString);
-  return new Intl.DateTimeFormat('es-CU', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  }).format(date);
+export const formatDateShort = (dateString: string, includeTime = false): string => {
+  try {
+    const date = new Date(dateString);
+    const options: Intl.DateTimeFormatOptions = {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    };
+    if (includeTime) {
+      options.hour = '2-digit';
+      options.minute = '2-digit';
+    }
+    return date.toLocaleDateString('es-ES', options);
+  } catch {
+    return dateString;
+  }
 };
 
 export const getMonedaFlag = (codigo: string): string => {
   const flags: Record<string, string> = {
     USD: '🇺🇸',
     EUR: '🇪🇺',
-    MXN: '🇲🇽',
+    MLC: '🇨🇺',
     CAD: '🇨🇦',
+    MXN: '🇲🇽',
+    GBP: '🇬🇧',
+    CHF: '🇨🇭',
+    JPY: '🇯🇵',
+    CNY: '🇨🇳',
+    AUD: '🇦🇺',
+    DKK: '🇩🇰',
+    NOK: '🇳🇴',
+    SEK: '🇸🇪',
+    RUB: '🇷🇺',
   };
-  return flags[codigo.toUpperCase()] || '🏳️';
+  return flags[codigo.toUpperCase()] || '💱';
 };
 
 export const getTasaCambioColor = (tasa: number): string => {

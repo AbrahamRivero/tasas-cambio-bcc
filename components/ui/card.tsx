@@ -1,8 +1,8 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { Platform, StyleSheet, Text, View, ViewStyle } from 'react-native';
-import { BorderRadius, Colors, Shadows, Spacing, Typography } from '../constants/theme';
-import { useColorScheme } from '../hooks/use-color-scheme';
+import { BorderRadius, Colors, Shadows, Spacing, Typography } from '../../constants/theme';
+import { useColorScheme } from '../../hooks/use-color-scheme';
 
 interface CardProps {
   children: React.ReactNode;

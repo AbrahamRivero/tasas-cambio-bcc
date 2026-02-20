@@ -1,4 +1,4 @@
-import { HapticTab } from '@/components/haptic-tab';
+import { HapticTab } from '@/components/ui/haptic-tab';
 import { BorderRadius, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -83,7 +83,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="historico"
+        name="history"
         options={{
           title: 'Histórico',
           tabBarIcon: ({ color, focused }) => (
@@ -102,7 +102,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="calculator"
+        name="converter"
         options={{
           title: 'Calculadora',
           tabBarIcon: ({ color, focused }) => (
@@ -117,7 +117,7 @@ export default function TabLayout() {
               />
             </View>
           ),
-          tabBarActiveTintColor: colors.accent,
+          tabBarActiveTintColor: colors.success,
         }}
       />
     </Tabs>
