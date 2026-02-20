@@ -26,17 +26,17 @@ export default function HistoricoScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [monedaFiltro, setMonedaFiltro] = useState('');
+  const [currencyFilter, setCurrencyFilter] = useState('');
   
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
 
-  const cargarTasasHistorico = useCallback(async (moneda?: string) => {
+  const loadHistoricalRates = useCallback(async (currencyCode?: string) => {
     try {
       setError('');
       setLoading(true);
-      const response = await apiService.getTasasHistorico(moneda);
+      const response = await apiService.getTasasHistorico(currencyCode);
       
       if (response.success) {
         setTasas(response.data);
@@ -52,19 +52,19 @@ export default function HistoricoScreen() {
   }, []);
 
   useEffect(() => {
-    cargarTasasHistorico(monedaFiltro);
-  }, [monedaFiltro]);
+    loadHistoricalRates(currencyFilter);
+  }, [currencyFilter]);
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
-    cargarTasasHistorico(monedaFiltro);
-  }, [monedaFiltro]);
+    loadHistoricalRates(currencyFilter);
+  }, [currencyFilter]);
 
-  const handleMonedaFilter = useCallback((codigo: string) => {
-    setMonedaFiltro(codigo === monedaFiltro ? '' : codigo);
-  }, [monedaFiltro]);
+  const handleCurrencyFilter = useCallback((codigo: string) => {
+    setCurrencyFilter(codigo === currencyFilter ? '' : codigo);
+  }, [currencyFilter]);
 
-  const getMonedaFlag = (codigo: string): string => {
+  const getCurrencyFlag = (codigo: string): string => {
     const flags: Record<string, string> = {
       USD: '🇺🇸',
       EUR: '🇪🇺',
@@ -86,7 +86,7 @@ export default function HistoricoScreen() {
     label?: string;
   }) => (
     <TouchableOpacity
-      onPress={() => handleMonedaFilter(code)}
+      onPress={() => handleCurrencyFilter(code)}
       activeOpacity={0.7}
       style={[
         styles.filterChip,
@@ -171,7 +171,7 @@ export default function HistoricoScreen() {
                 <View style={styles.heroStatItem}>
                   <Ionicons name="analytics-outline" size={18} color="rgba(255,255,255,0.7)" />
                   <Text style={styles.heroStatText}>
-                    {monedaFiltro || 'Todas las monedas'}
+                    {currencyFilter || 'Todas las monedas'}
                   </Text>
                 </View>
               </View>
@@ -193,9 +193,9 @@ export default function HistoricoScreen() {
                   Filtrar por Moneda
                 </Text>
               </View>
-              {monedaFiltro && (
+              {currencyFilter && (
                 <TouchableOpacity 
-                  onPress={() => handleMonedaFilter('')}
+                  onPress={() => handleCurrencyFilter('')}
                   style={[styles.clearButton, { backgroundColor: colors.errorLight }]}
                 >
                   <Text style={[styles.clearButtonText, { color: colors.error }]}>
@@ -208,15 +208,15 @@ export default function HistoricoScreen() {
             <View style={styles.filterChipsContainer}>
               <FilterChip
                 code=""
-                isActive={monedaFiltro === ''}
+                isActive={currencyFilter === ''}
                 label="Todas"
               />
               {MONEDAS_PRINCIPALES.map((moneda) => (
                 <FilterChip
                   key={moneda.codigo}
                   code={moneda.codigo}
-                  flag={getMonedaFlag(moneda.codigo)}
-                  isActive={monedaFiltro === moneda.codigo}
+                  flag={getCurrencyFlag(moneda.codigo)}
+                  isActive={currencyFilter === moneda.codigo}
                 />
               ))}
             </View>
@@ -224,7 +224,7 @@ export default function HistoricoScreen() {
         </View>
 
         {/* Active Filter Info */}
-        {monedaFiltro && (
+        {currencyFilter && (
           <View style={styles.activeFilterSection}>
             <View style={[
               styles.activeFilterCard, 
@@ -233,11 +233,11 @@ export default function HistoricoScreen() {
               <View style={styles.activeFilterContent}>
                 <Ionicons name="information-circle" size={18} color={colors.primary} />
                 <Text style={[styles.activeFilterText, { color: colors.primary }]}>
-                  Mostrando histórico para <Text style={styles.activeFilterBold}>{monedaFiltro}</Text>
+                  Mostrando histórico para <Text style={styles.activeFilterBold}>{currencyFilter}</Text>
                 </Text>
               </View>
               <Text style={styles.activeFilterFlag}>
-                {getMonedaFlag(monedaFiltro)}
+                {getCurrencyFlag(currencyFilter)}
               </Text>
             </View>
           </View>
@@ -260,9 +260,9 @@ export default function HistoricoScreen() {
             refreshing={refreshing}
             onRefresh={handleRefresh}
             error={error}
-            onRetry={() => cargarTasasHistorico(monedaFiltro)}
-            monedaFiltro={monedaFiltro}
-            esHistorico={true}
+            onRetry={() => loadHistoricalRates(currencyFilter)}
+            currencyFilter={currencyFilter}
+            isHistorical={true}
           />
         </View>
 

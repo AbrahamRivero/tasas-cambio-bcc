@@ -12,7 +12,7 @@ import {
 import { BorderRadius, Colors, Shadows, Spacing, Typography } from '../constants/theme';
 import { useColorScheme } from '../hooks/use-color-scheme';
 import { TasaCambioHistorico } from '../types';
-import { formatCurrency, formatDateShort, getMonedaFlag } from '../utils/formatters';
+import { formatCurrency, formatDateShort, getCurrencyFlag } from '../utils/formatters';
 
 // ============================================
 // Types & Interfaces
@@ -20,7 +20,7 @@ import { formatCurrency, formatDateShort, getMonedaFlag } from '../utils/formatt
 
 type RateType = 'oficial' | 'publica' | 'especial';
 
-interface TasaData {
+interface RateData {
   codigoMoneda: string;
   nombreMoneda: string;
   tasaOficial: number;
@@ -29,11 +29,11 @@ interface TasaData {
   fechaActivacion: string;
 }
 
-interface TasaCambioItemProps {
-  tasa: TasaData;
+interface ExchangeRateCardProps {
+  tasa: RateData;
   onRateTypePress?: (type: RateType) => void;
   selectedRateType?: RateType;
-  historico?: TasaCambioHistorico[];
+  historicalData?: TasaCambioHistorico[];
 }
 
 // ============================================
@@ -150,11 +150,11 @@ const RateTypeSelector: React.FC<RateTypeSelectorProps> = ({
 // Main Component
 // ============================================
 
-export const ExchangeRateCard: React.FC<TasaCambioItemProps> = ({
+export const ExchangeRateCard: React.FC<ExchangeRateCardProps> = ({
   tasa,
   onRateTypePress,
   selectedRateType = 'especial',
-  historico = []
+  historicalData = []
 }) => {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -176,23 +176,23 @@ export const ExchangeRateCard: React.FC<TasaCambioItemProps> = ({
   const currentRate = rateTypes.find((t) => t.key === internalSelectedRate)?.value || tasa.tasaEspecial;
 
   // Calculate buy/sell values (±2%)
-  const valorCompra = formatCurrency(currentRate * 1.02);
-  const valorVenta = formatCurrency(currentRate * 0.98);
+  const buyValue = formatCurrency(currentRate * 1.02);
+  const sellValue = formatCurrency(currentRate * 0.98);
 
   // Determine trend indicator based on historical data
   const trendData = useMemo(() => {
-    if (historico.length === 0) {
+    if (historicalData.length === 0) {
       // If no historical data, use default logic
       return { trendUp: false, hasData: false };
     }
 
     // Sort historical data by date (newest first)
-    const sortedHistorico = [...historico].sort((a, b) => 
+    const sortedHistorical = [...historicalData].sort((a, b) => 
       new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
     );
 
     // Get the most recent historical rate (excluding today)
-    const yesterdayData = sortedHistorico.find(item => {
+    const yesterdayData = sortedHistorical.find(item => {
       const itemDate = new Date(item.fecha).toDateString();
       const todayDate = new Date().toDateString();
       return itemDate !== todayDate;
@@ -219,7 +219,7 @@ export const ExchangeRateCard: React.FC<TasaCambioItemProps> = ({
     const trendUp = currentRate > previousRate;
 
     return { trendUp, hasData: true, previousRate };
-  }, [historico, currentRate, internalSelectedRate]);
+  }, [historicalData, currentRate, internalSelectedRate]);
 
   const { trendUp } = trendData;
 
@@ -254,7 +254,7 @@ export const ExchangeRateCard: React.FC<TasaCambioItemProps> = ({
         <View style={styles.currencyRow}>
           <View style={[styles.flagContainer, { backgroundColor: colors.primaryLight }]}>
             <Text style={styles.flag} accessibilityLabel={`Bandera de ${tasa.nombreMoneda}`}>
-              {getMonedaFlag(tasa.codigoMoneda)}
+              {getCurrencyFlag(tasa.codigoMoneda)}
             </Text>
           </View>
           <View style={styles.currencyDetails}>
@@ -276,7 +276,7 @@ export const ExchangeRateCard: React.FC<TasaCambioItemProps> = ({
           </Text>
           <View style={styles.rateValueRow}>
             <Text style={[styles.mainRate, { color: colors.text }]}>
-              {formatCurrency(currentRate, 4)}
+              {formatCurrency(currentRate, 2)}
             </Text>
             <View style={styles.trendContainer}>
               <Ionicons
@@ -317,13 +317,13 @@ export const ExchangeRateCard: React.FC<TasaCambioItemProps> = ({
         <View style={styles.transactionGrid}>
           <TransactionCard
             type="compra"
-            value={valorCompra}
+            value={buyValue}
             percentage="+2%"
             colors={colors}
           />
           <TransactionCard
             type="venta"
-            value={valorVenta}
+            value={sellValue}
             percentage="-2%"
             colors={colors}
           />

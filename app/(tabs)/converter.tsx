@@ -51,7 +51,7 @@ export const ConverterScreen: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const cargarTasas = async () => {
+    const loadRates = async () => {
         try {
             setError(null);
             setLoading(true);
@@ -69,7 +69,7 @@ export const ConverterScreen: React.FC = () => {
     };
 
     useEffect(() => {
-        cargarTasas();
+        loadRates();
     }, []);
 
     if (loading) {
@@ -77,7 +77,7 @@ export const ConverterScreen: React.FC = () => {
     }
 
     if (error) {
-        return <ErrorState message={error} onRetry={cargarTasas} />;
+        return <ErrorState message={error} onRetry={loadRates} />;
     }
 
     return (
