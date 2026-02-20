@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { BorderRadius, Colors, Shadows, Spacing, Typography } from '../constants/theme';
 import { useColorScheme } from '../hooks/use-color-scheme';
+import { formatCurrency, getMonedaFlag } from '../utils/formatters';
 
 // ============================================
 // Types & Interfaces
@@ -35,42 +36,6 @@ interface CalculadoraProps {
     tasas: TasaData[];
     defaultMoneda?: string;
 }
-
-// ============================================
-// Utility Functions
-// ============================================
-
-const getMonedaFlag = (codigo: string): string => {
-    const flags: Record<string, string> = {
-        USD: '\u{1F1FA}\u{1F1F8}',
-        EUR: '\u{1F1EA}\u{1F1FA}',
-        MXN: '\u{1F1F2}\u{1F1FD}',
-        CAD: '\u{1F1E8}\u{1F1E6}',
-        AUD: '\u{1F1E6}\u{1F1FA}',
-        CHF: '\u{1F1E8}\u{1F1ED}',
-        CNY: '\u{1F1E8}\u{1F1F3}',
-        GBP: '\u{1F1EC}\u{1F1E7}',
-        JPY: '\u{1F1EF}\u{1F1F5}',
-        DKK: '\u{1F1E9}\u{1F1F0}',
-        NOK: '\u{1F1F3}\u{1F1F4}',
-        SEK: '\u{1F1F8}\u{1F1EA}',
-        RUB: '\u{1F1F7}\u{1F1FA}',
-        MLC: '\u{1F1E8}\u{1F1FA}',
-    };
-    return flags[codigo] || '\u{1F4B1}';
-};
-
-const formatCurrency = (value: number, decimals = 2): string => {
-    return value.toLocaleString('es-ES', {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals,
-    });
-};
-
-const parseInputAmount = (value: string): number => {
-    const cleaned = value.replace(/[^\d.,]/g, '').replace(',', '.');
-    return parseFloat(cleaned) || 0;
-};
 
 // ============================================
 // Sub Components
@@ -343,7 +308,7 @@ const ResultCard: React.FC<ResultCardProps> = ({
                     <View style={styles.resultDetailRow}>
                         <Text style={styles.resultDetailLabel}>Tasa aplicada</Text>
                         <Text style={styles.resultDetailValue}>
-                            1 {inputCurrency} = {formatCurrency(rate, 4)} {outputCurrency}
+                            1 USD = {formatCurrency(rate, 2)} CUP
                         </Text>
                     </View>
                 </View>
@@ -399,7 +364,7 @@ const QuickAmountButtons: React.FC<QuickAmountProps> = ({
 // Main Component
 // ============================================
 
-export const Calculator: React.FC<CalculadoraProps> = ({
+export const CurrencyConverter: React.FC<CalculadoraProps> = ({
     tasas,
     defaultMoneda,
 }) => {
@@ -411,6 +376,11 @@ export const Calculator: React.FC<CalculadoraProps> = ({
     const [selectedRateType, setSelectedRateType] = useState<RateType>('especial');
     const [inputValue, setInputValue] = useState('');
     const inputRef = useRef<TextInput>(null);
+
+    const parseInputAmount = (value: string): number => {
+        const cleaned = value.replace(/[^\d.,]/g, '').replace(',', '.');
+        return parseFloat(cleaned) || 0;
+    };
 
     const selectedTasa = useMemo(() =>
         tasas.find(t => t.codigoMoneda === selectedMoneda) || tasas[0],
@@ -533,7 +503,7 @@ export const Calculator: React.FC<CalculadoraProps> = ({
                     <View style={styles.rateInfoRow}>
                         <Ionicons name="information-circle-outline" size={14} color={colors.textMuted} />
                         <Text style={[styles.rateInfoText, { color: colors.textMuted }]}>
-                            Tasa actual: 1 {selectedMoneda} = {formatCurrency(currentRate, 4)} CUP
+                            Tasa actual: 1 {selectedMoneda} = {formatCurrency(currentRate, 2)} CUP
                             {selectedOperation === 'compra' ? ' (+2%)' : ' (-2%)'}
                         </Text>
                     </View>
@@ -660,7 +630,7 @@ export const Calculator: React.FC<CalculadoraProps> = ({
                                     : selectedRateType === 'publica'
                                         ? selectedTasa?.tasaPublica || 0
                                         : selectedTasa?.tasaEspecial || 0,
-                                4
+                                2
                             )} CUP
                         </Text>
                     </View>
@@ -963,4 +933,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default Calculator;
+export default CurrencyConverter;

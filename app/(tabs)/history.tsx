@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 
-import { Card } from '@/components/Card';
-import { TasaCambioList } from '@/components/TasaCambioList';
+import { ExchangeRateList } from '@/components/ExchangeRateList';
+import { Card } from '@/components/ui/card';
 import { BorderRadius, Colors, Shadows, Spacing, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme.web';
 import { apiService } from '@/services/api';
@@ -254,7 +254,7 @@ export default function HistoricoScreen() {
             </Text>
           </View>
           
-          <TasaCambioList
+          <ExchangeRateList
             tasas={tasas}
             loading={loading}
             refreshing={refreshing}

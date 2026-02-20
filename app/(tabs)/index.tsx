@@ -1,5 +1,5 @@
-import { Card, CardHeader, QuickStatCard } from '@/components/Card';
-import { TasaCambioList } from '@/components/TasaCambioList';
+import { ExchangeRateList } from '@/components/ExchangeRateList';
+import { Card, CardHeader, QuickStatCard } from '@/components/ui/card';
 import { BorderRadius, Colors, Shadows, Spacing, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme.web';
 import { apiService } from '@/services/api';
@@ -216,7 +216,7 @@ export default function TasasActivasScreen() {
 
         {/* Exchange Rates List */}
         <View style={styles.listSection}>
-          <TasaCambioList
+          <ExchangeRateList
             tasas={tasas as any}
             loading={loading}
             refreshing={refreshing}

@@ -1,4 +1,4 @@
-import { Calculator } from '@/components/Calculator';
+import { CurrencyConverter } from '@/components/CurrencyConverter';
 import { BorderRadius, Colors, Shadows, Spacing, Typography } from '@/constants/theme';
 import { apiService } from '@/services/api';
 import { TasaCambio } from '@/types';
@@ -44,7 +44,7 @@ const ErrorState: React.FC<{ message: string; onRetry: () => void }> = ({ messag
     );
 };
 
-export const CalculadoraScreen: React.FC = () => {
+export const ConverterScreen: React.FC = () => {
     const colorScheme = useColorScheme();
     const colors = Colors[colorScheme ?? 'light'];
     const [tasas, setTasas] = useState<TasaCambio[]>([]);
@@ -82,7 +82,7 @@ export const CalculadoraScreen: React.FC = () => {
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
-            <Calculator
+            <CurrencyConverter
                 tasas={tasas}
                 defaultMoneda="USD"
             />
@@ -167,4 +167,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default CalculadoraScreen;
+export default ConverterScreen;
