@@ -59,3 +59,20 @@ export const getExchangeRateColor = (rate: number): string => {
   if (rate < 200) return 'text-warning-600';
   return 'text-error-600';
 };
+
+const PRIORITY_CURRENCIES = ['USD', 'EUR', 'CAD', 'MXN'];
+
+export const sortCurrencies = (currencies: string[]): string[] => {
+  return [...currencies].sort((a, b) => {
+    const aIndex = PRIORITY_CURRENCIES.indexOf(a);
+    const bIndex = PRIORITY_CURRENCIES.indexOf(b);
+    
+    if (aIndex !== -1 && bIndex !== -1) {
+      return aIndex - bIndex;
+    }
+    if (aIndex !== -1) return -1;
+    if (bIndex !== -1) return 1;
+    
+    return a.localeCompare(b);
+  });
+};

@@ -5,11 +5,11 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { BorderRadius, Colors, Shadows, Spacing, Typography } from '../constants/theme';
 import { useColorScheme } from '../hooks/use-color-scheme';
 import { MONEDAS_PRINCIPALES, TasaCambio, TasaCambioHistorico } from '../types';
-import { formatDateShort } from '../utils/formatters';
+import { formatDateShort, getCurrencyFlag } from '../utils/formatters';
 import { ExchangeRateCard } from './ExchangeRateCard';
 
 interface ExchangeRateListProps {
-  tasas: (TasaCambio | TasaCambioHistorico)[] | null;
+  currencies: (TasaCambio | TasaCambioHistorico)[] | null;
   loading?: boolean;
   refreshing?: boolean;
   onRefresh?: () => void;
@@ -95,9 +95,10 @@ const EmptyState: React.FC<{ message: string }> = ({ message }) => {
 interface HistoricalCardProps {
   data: TasaCambioHistorico;
   colors: typeof Colors.light;
+  showCurrency?: boolean;
 }
 
-const HistoricalCard: React.FC<HistoricalCardProps> = ({ data, colors }) => {
+const HistoricalCard: React.FC<HistoricalCardProps> = ({ data, colors, showCurrency }) => {
   const rates = [
     { label: 'Oficial', value: data.tasaOficial, icon: 'business' as const },
     { label: 'Pública', value: data.tasaPublica, icon: 'people' as const },
@@ -117,6 +118,12 @@ const HistoricalCard: React.FC<HistoricalCardProps> = ({ data, colors }) => {
           <Ionicons name="calendar" size={16} color="#FFFFFF" />
           <Text style={styles.historicoDate}>{formatDateShort(data.fecha, true)}</Text>
         </View>
+        {showCurrency && data.codigoMoneda && (
+          <View style={styles.historicoCurrencyBadge}>
+            <Text style={styles.historicoCurrencyFlag}>{getCurrencyFlag(data.codigoMoneda)}</Text>
+            <Text style={styles.historicoCurrencyCode}>{data.codigoMoneda}</Text>
+          </View>
+        )}
       </LinearGradient>
 
       {/* Rates Grid */}
@@ -150,7 +157,7 @@ const HistoricalCard: React.FC<HistoricalCardProps> = ({ data, colors }) => {
 };
 
 export const ExchangeRateList: React.FC<ExchangeRateListProps> = ({
-  tasas,
+  currencies,
   loading,
   refreshing = false,
   onRefresh,
@@ -163,13 +170,13 @@ export const ExchangeRateList: React.FC<ExchangeRateListProps> = ({
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
-  if (!tasas) {
+  if (!currencies) {
     return <Loading message="Cargando tasas de cambio..." />;
   }
 
-  const ratesData: (TasaCambio | TasaCambioHistorico)[] = Array.isArray(tasas) && !isHistorical && tasas.length > 0 && 'tasas' in tasas[0] 
-    ? (tasas[0] as any)?.tasas || [] 
-    : (tasas || []);
+  const ratesData: (TasaCambio | TasaCambioHistorico)[] = Array.isArray(currencies) && !isHistorical && currencies.length > 0 && 'tasas' in currencies[0] 
+    ? (currencies[0] as any)?.tasas || [] 
+    : (currencies || []);
 
   const filteredRates = currencyFilter && !isHistorical 
     ? ratesData.filter((tasa: TasaCambio | TasaCambioHistorico) => {
@@ -223,6 +230,7 @@ export const ExchangeRateList: React.FC<ExchangeRateListProps> = ({
               key={historicoTasa.fecha || index}
               data={historicoTasa}
               colors={colors}
+              showCurrency={!currencyFilter}
             />
           );
         })}
@@ -405,6 +413,25 @@ const styles = StyleSheet.create({
   historicoRateCurrency: {
     ...Typography.bodySmall,
     marginTop: 2,
+  },
+  historicoCurrencyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    marginTop: Spacing.sm,
+    alignSelf: 'flex-start',
+  },
+  historicoCurrencyFlag: {
+    fontSize: 14,
+  },
+  historicoCurrencyCode: {
+    color: '#FFFFFF',
+    ...Typography.labelSmall,
+    fontWeight: '600',
   },
 });
 

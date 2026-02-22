@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { BorderRadius, Colors, Shadows, Spacing, Typography } from '../constants/theme';
 import { useColorScheme } from '../hooks/use-color-scheme';
-import { formatCurrency, getCurrencyFlag } from '../utils/formatters';
+import { formatCurrency, getCurrencyFlag, sortCurrencies } from '../utils/formatters';
 
 // ============================================
 // Types & Interfaces
@@ -33,7 +33,7 @@ interface RateData {
 }
 
 interface ConverterProps {
-    tasas: RateData[];
+    currencies: RateData[];
     defaultMoneda?: string;
 }
 
@@ -42,24 +42,30 @@ interface ConverterProps {
 // ============================================
 
 interface CurrencySelectorProps {
-    tasas: RateData[];
+    currencies: RateData[];
     selectedCurrency: string;
     onSelect: (codigo: string) => void;
     colors: typeof Colors.light;
 }
 
 const CurrencySelector: React.FC<CurrencySelectorProps> = ({
-    tasas,
+    currencies,
     selectedCurrency,
     onSelect,
     colors,
-}) => (
+}) => {
+const sortedTasas = useMemo(() => {
+        const sortedCodes = sortCurrencies(currencies.map(t => t.codigoMoneda));
+        return sortedCodes.map(code => currencies.find(t => t.codigoMoneda === code)!).filter(Boolean);
+    }, [currencies]);
+    
+    return (
     <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.monedaSelectorContainer}
     >
-        {tasas.map((tasa) => {
+        {sortedTasas.map((tasa) => {
             const isSelected = selectedCurrency === tasa.codigoMoneda;
             return (
                 <Pressable
@@ -91,7 +97,8 @@ const CurrencySelector: React.FC<CurrencySelectorProps> = ({
             );
         })}
     </ScrollView>
-);
+    );
+};
 
 interface OperationToggleProps {
     selectedOperation: OperationType;
@@ -365,13 +372,13 @@ const QuickAmountButtons: React.FC<QuickAmountProps> = ({
 // ============================================
 
 export const CurrencyConverter: React.FC<ConverterProps> = ({
-    tasas,
+    currencies,
     defaultMoneda,
 }) => {
     const colorScheme = useColorScheme();
     const colors = Colors[colorScheme ?? 'light'];
 
-    const [selectedCurrency, setSelectedMoneda] = useState(defaultMoneda || tasas[0]?.codigoMoneda || 'USD');
+    const [selectedCurrency, setSelectedMoneda] = useState(defaultMoneda || currencies[0]?.codigoMoneda || 'USD');
     const [selectedOperation, setSelectedOperation] = useState<OperationType>('compra');
     const [selectedRateType, setSelectedRateType] = useState<RateType>('especial');
     const [inputValue, setInputValue] = useState('');
@@ -383,8 +390,8 @@ export const CurrencyConverter: React.FC<ConverterProps> = ({
     };
 
     const selectedTasa = useMemo(() =>
-        tasas.find(t => t.codigoMoneda === selectedCurrency) || tasas[0],
-        [tasas, selectedCurrency]
+        currencies.find(t => t.codigoMoneda === selectedCurrency) || currencies[0],
+        [currencies, selectedCurrency]
     );
 
     const currentRate = useMemo(() => {
@@ -471,7 +478,7 @@ export const CurrencyConverter: React.FC<ConverterProps> = ({
                         Selecciona la moneda
                     </Text>
                     <CurrencySelector
-                        tasas={tasas}
+                        currencies={currencies}
                         selectedCurrency={selectedCurrency}
                         onSelect={setSelectedMoneda}
                         colors={colors}
