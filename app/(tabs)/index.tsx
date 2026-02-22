@@ -1,5 +1,5 @@
 import { ExchangeRateList } from '@/components/ExchangeRateList';
-import { Card, CardHeader, QuickStatCard } from '@/components/ui/card';
+import { QuickStatCard } from '@/components/ui/card';
 import { BorderRadius, Colors, Shadows, Spacing, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme.web';
 import { apiService } from '@/services/api';
@@ -22,7 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 
 export default function TasasActivasScreen() {
-  const [tasas, setTasas] = useState<TasasActivasResponse[] | null>(null);
+  const [currencies, setCurrencies] = useState<TasasActivasResponse[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -41,12 +41,12 @@ const loadRates = useCallback(async () => {
       
       // Load active rates
       const [ratesResponse, historicalResponse] = await Promise.all([
-        apiService.getTasasActivas(),
+        apiService.getActiveCurrencies(),
         apiService.getTasasHistorico()
       ]);
 
       if (ratesResponse.success) {
-        setTasas([ratesResponse.data]);
+        setCurrencies([ratesResponse.data]);
         setLastUpdate(ratesResponse.data.fechaHoy);
         setLastUpdateTimestamp(new Date()); // Track when we actually fetched the data
         
@@ -84,10 +84,10 @@ const loadRates = useCallback(async () => {
 
   // Calculate stats from tasas
   const stats = React.useMemo(() => {
-    if (!tasas || !tasas[0]?.tasas) {
+    if (!currencies || !currencies[0]?.tasas) {
       return { totalMonedas: 0, usdRate: '0.00', eurRate: '0.00' };
     }
-    const tasasList = tasas[0].tasas;
+    const tasasList = currencies[0].tasas;
     const usd = tasasList.find((t: any) => t.codigoMoneda === 'USD');
     const eur = tasasList.find((t: any) => t.codigoMoneda === 'EUR');
     return {
@@ -95,7 +95,7 @@ const loadRates = useCallback(async () => {
       usdRate: usd?.tasaEspecial?.toFixed(2) || '0.00',
       eurRate: eur?.tasaEspecial?.toFixed(2) || '0.00',
     };
-  }, [tasas]);
+  }, [currencies]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -186,38 +186,13 @@ const loadRates = useCallback(async () => {
               icon="🏛️"
               accentColor={colors.accent}
             />
-            <QuickStatCard
-              label="Estado"
-              value="Activo"
-              icon="✓"
-              accentColor={colors.success}
-            />
           </View>
-        </View>
-
-        {/* Main Content Card */}
-        <View style={styles.mainSection}>
-          <Card style={styles.mainCard}>
-            <CardHeader
-              title="Cotizaciones Oficiales"
-              subtitle="Banco Central de Cuba"
-              icon="📊"
-              rightElement={
-                <View style={[styles.verifiedBadge, { backgroundColor: colors.successLight }]}>
-                  <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-                  <Text style={[styles.verifiedText, { color: colors.successDark }]}>
-                    Verificado
-                  </Text>
-                </View>
-              }
-            />
-          </Card>
         </View>
 
         {/* Exchange Rates List */}
         <View style={styles.listSection}>
           <ExchangeRateList
-            tasas={tasas as any}
+            currencies={currencies as any}
             loading={loading}
             refreshing={refreshing}
             onRefresh={handleRefresh}

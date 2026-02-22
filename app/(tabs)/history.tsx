@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { BorderRadius, Colors, Shadows, Spacing, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme.web';
 import { apiService } from '@/services/api';
-import { MONEDAS_PRINCIPALES } from '@/types';
+import { getCurrencyFlag, sortCurrencies } from '@/utils/formatters';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -22,24 +22,35 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function HistoricoScreen() {
-  const [tasas, setTasas] = useState<any[] | null>(null);
+  const [currencies, setCurrencies] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [currencyFilter, setCurrencyFilter] = useState('');
-  
+  const [currencyFilter, setCurrencyFilter] = useState('USD');
+  const [availableCurrencies, setAvailableCurrencies] = useState<string[]>([]);
+
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
+
+  const loadAvailableCurrencies = useCallback(async () => {
+    try {
+      const response = await apiService.getActiveCurrencies();
+      if (response.success && response.data?.tasas) {
+        const currencies = response.data.tasas.map((t: any) => t.codigoMoneda);
+        setAvailableCurrencies(currencies);
+      }
+    } catch { }
+  }, []);
 
   const loadHistoricalRates = useCallback(async (currencyCode?: string) => {
     try {
       setError('');
       setLoading(true);
       const response = await apiService.getTasasHistorico(currencyCode);
-      
+
       if (response.success) {
-        setTasas(response.data);
+        setCurrencies(response.data);
       } else {
         setError(response.error || 'Error al cargar el histórico de tasas');
       }
@@ -52,38 +63,31 @@ export default function HistoricoScreen() {
   }, []);
 
   useEffect(() => {
-    loadHistoricalRates(currencyFilter);
-  }, [currencyFilter]);
+    loadAvailableCurrencies();
+  }, [loadAvailableCurrencies]);
+
+  useEffect(() => {
+    const filterForApi = currencyFilter === 'USD' ? '' : currencyFilter;
+    loadHistoricalRates(filterForApi);
+  }, [currencyFilter, loadHistoricalRates]);
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
     loadHistoricalRates(currencyFilter);
   }, [currencyFilter]);
 
-  const handleCurrencyFilter = useCallback((codigo: string) => {
-    setCurrencyFilter(codigo === currencyFilter ? '' : codigo);
+  const handleCurrencyFilter = useCallback((code: string) => {
+    setCurrencyFilter(code === currencyFilter ? 'USD' : code);
   }, [currencyFilter]);
 
-  const getCurrencyFlag = (codigo: string): string => {
-    const flags: Record<string, string> = {
-      USD: '🇺🇸',
-      EUR: '🇪🇺',
-      MXN: '🇲🇽',
-      CAD: '🇨🇦',
-    };
-    return flags[codigo.toUpperCase()] || '🏳️';
-  };
-
-  const FilterChip = ({ 
-    code, 
-    flag, 
+  const FilterChip = ({
+    code,
+    flag,
     isActive,
-    label,
-  }: { 
-    code: string; 
-    flag?: string; 
+  }: {
+    code: string;
+    flag?: string;
     isActive: boolean;
-    label?: string;
   }) => (
     <TouchableOpacity
       onPress={() => handleCurrencyFilter(code)}
@@ -92,38 +96,32 @@ export default function HistoricoScreen() {
         styles.filterChip,
         {
           backgroundColor: isActive ? colors.primary : colors.surface,
-          borderColor: isActive ? colors.primary : colors.cardBorder,
-          ...Platform.select({
-            ios: isActive ? Shadows.sm : {},
-            android: { elevation: isActive ? 2 : 0 },
-          }),
+          borderColor: isActive ? colors.primary : colors.border,
+          ...(isActive ? Shadows.md : Shadows.sm),
         }
       ]}
+      accessibilityRole="button"
+      accessibilityState={{ selected: isActive }}
     >
       {flag && <Text style={styles.filterFlag}>{flag}</Text>}
-      <Text 
+      <Text
         style={[
           styles.filterText,
-          { color: isActive ? '#FFFFFF' : colors.text }
+          { color: isActive ? colors.textInverse : colors.text }
         ]}
       >
-        {label || code}
+        {code}
       </Text>
-      {isActive && (
-        <View style={styles.filterCheckmark}>
-          <Ionicons name="checkmark" size={12} color="#FFFFFF" />
-        </View>
-      )}
     </TouchableOpacity>
   );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar 
-        barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} 
+      <StatusBar
+        barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
       />
-      
-      <ScrollView 
+
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
@@ -164,14 +162,14 @@ export default function HistoricoScreen() {
                 <View style={styles.heroStatItem}>
                   <Ionicons name="calendar-outline" size={18} color="rgba(255,255,255,0.7)" />
                   <Text style={styles.heroStatText}>
-                    {tasas?.length || 0} registros
+                    {currencies?.length || 0} registros
                   </Text>
                 </View>
                 <View style={styles.heroStatDivider} />
                 <View style={styles.heroStatItem}>
                   <Ionicons name="analytics-outline" size={18} color="rgba(255,255,255,0.7)" />
                   <Text style={styles.heroStatText}>
-                    {currencyFilter || 'Todas las monedas'}
+                    {currencyFilter}
                   </Text>
                 </View>
               </View>
@@ -193,41 +191,40 @@ export default function HistoricoScreen() {
                   Filtrar por Moneda
                 </Text>
               </View>
-              {currencyFilter && (
-                <TouchableOpacity 
-                  onPress={() => handleCurrencyFilter('')}
+              {currencyFilter && currencyFilter !== 'USD' && (
+                <TouchableOpacity
+                  onPress={() => handleCurrencyFilter(currencyFilter)}
                   style={[styles.clearButton, { backgroundColor: colors.errorLight }]}
                 >
                   <Text style={[styles.clearButtonText, { color: colors.error }]}>
-                    Limpiar
+                    Reiniciar
                   </Text>
                 </TouchableOpacity>
               )}
             </View>
-            
-            <View style={styles.filterChipsContainer}>
-              <FilterChip
-                code=""
-                isActive={currencyFilter === ''}
-                label="Todas"
-              />
-              {MONEDAS_PRINCIPALES.map((moneda) => (
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterChipsContainer}
+            >
+              {sortCurrencies(availableCurrencies).map((codigo) => (
                 <FilterChip
-                  key={moneda.codigo}
-                  code={moneda.codigo}
-                  flag={getCurrencyFlag(moneda.codigo)}
-                  isActive={currencyFilter === moneda.codigo}
+                  key={codigo}
+                  code={codigo}
+                  flag={getCurrencyFlag(codigo)}
+                  isActive={currencyFilter === codigo}
                 />
               ))}
-            </View>
+            </ScrollView>
           </Card>
         </View>
 
         {/* Active Filter Info */}
-        {currencyFilter && (
+        {currencyFilter && currencyFilter !== 'USD' && (
           <View style={styles.activeFilterSection}>
             <View style={[
-              styles.activeFilterCard, 
+              styles.activeFilterCard,
               { backgroundColor: colors.primaryLight, borderColor: colors.primary }
             ]}>
               <View style={styles.activeFilterContent}>
@@ -253,9 +250,9 @@ export default function HistoricoScreen() {
               Ordenados por fecha
             </Text>
           </View>
-          
+
           <ExchangeRateList
-            tasas={tasas}
+            currencies={currencies}
             loading={loading}
             refreshing={refreshing}
             onRefresh={handleRefresh}
@@ -271,7 +268,7 @@ export default function HistoricoScreen() {
           <View style={[styles.footerCard, { backgroundColor: colors.surface, borderColor: colors.cardBorder }]}>
             <Ionicons name="shield-checkmark-outline" size={20} color={colors.textMuted} />
             <Text style={[styles.footerText, { color: colors.textMuted }]}>
-              Datos oficiales del Banco Central de Cuba. Los registros históricos 
+              Datos oficiales del Banco Central de Cuba. Los registros históricos
               se actualizan diariamente.
             </Text>
           </View>
@@ -409,32 +406,23 @@ const styles = StyleSheet.create({
     ...Typography.labelSmall,
   },
   filterChipsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    paddingVertical: Spacing.xs,
     gap: Spacing.sm,
   },
   filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
+    gap: Spacing.sm,
   },
   filterFlag: {
-    fontSize: 16,
+    fontSize: 20,
   },
   filterText: {
-    ...Typography.labelMedium,
-  },
-  filterCheckmark: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    ...Typography.labelLarge,
   },
 
   // Active Filter Section

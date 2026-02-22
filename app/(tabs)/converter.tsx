@@ -47,7 +47,7 @@ const ErrorState: React.FC<{ message: string; onRetry: () => void }> = ({ messag
 export const ConverterScreen: React.FC = () => {
     const colorScheme = useColorScheme();
     const colors = Colors[colorScheme ?? 'light'];
-    const [tasas, setTasas] = useState<TasaCambio[]>([]);
+    const [currencies, setCurrencies] = useState<TasaCambio[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -55,9 +55,9 @@ export const ConverterScreen: React.FC = () => {
         try {
             setError(null);
             setLoading(true);
-            const response = await apiService.getTasasActivas();
+            const response = await apiService.getActiveCurrencies();
             if (response.success && response.data) {
-                setTasas(response.data.tasas);
+                setCurrencies(response.data.tasas);
             } else {
                 setError(response.error || 'Error al cargar las tasas');
             }
@@ -83,7 +83,7 @@ export const ConverterScreen: React.FC = () => {
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
             <CurrencyConverter
-                tasas={tasas}
+                currencies={currencies}
                 defaultMoneda="USD"
             />
         </View>

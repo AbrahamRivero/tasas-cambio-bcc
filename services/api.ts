@@ -57,7 +57,7 @@ class ApiService {
     }
   }
 
-  async getTasasActivas(): Promise<ApiResponse<TasasActivasResponse>> {
+  async getActiveCurrencies(): Promise<ApiResponse<TasasActivasResponse>> {
     return this.request<TasasActivasResponse>('/activas');
   }
 
@@ -86,7 +86,7 @@ class ApiService {
       }
       
       // If the API call fails, generate mock historical data from active rates
-      const activasResponse = await this.getTasasActivas();
+      const activasResponse = await this.getActiveCurrencies();
       if (!activasResponse.success) {
         return {
           success: false,
@@ -111,13 +111,13 @@ class ApiService {
         const dateStr = date.toISOString().split('T')[0];
         
         filteredTasas.forEach(tasa => {
-          // Add some variation to make it look like historical data
-          const variation = 0.98 + Math.random() * 0.04; // ±2% variation
+          const variation = 0.98 + Math.random() * 0.04;
           mockHistoricalData.push({
             fecha: dateStr,
             tasaOficial: parseFloat((tasa.tasaOficial * variation).toFixed(4)),
             tasaPublica: parseFloat((tasa.tasaPublica * variation).toFixed(4)),
-            tasaEspecial: parseFloat((tasa.tasaEspecial * variation).toFixed(4))
+            tasaEspecial: parseFloat((tasa.tasaEspecial * variation).toFixed(4)),
+            codigoMoneda: tasa.codigoMoneda
           });
         });
       }
@@ -137,7 +137,7 @@ class ApiService {
   }
 
   async getTasaPorMoneda(moneda: string): Promise<ApiResponse<TasaCambio>> {
-    const tasasResponse = await this.getTasasActivas();
+    const tasasResponse = await this.getActiveCurrencies();
     
     if (!tasasResponse.success) {
       return tasasResponse as ApiResponse<any>;

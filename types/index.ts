@@ -35,6 +35,7 @@ export interface TasaCambioHistorico {
   tasaOficial: number;
   tasaPublica: number;
   tasaEspecial: number;
+  codigoMoneda?: string;
 }
 
 export interface ApiResponse<T> {
