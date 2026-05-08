@@ -666,9 +666,9 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     header: {
-        paddingTop: Spacing['4xl'],
-        paddingBottom: Spacing['3xl'],
-        paddingHorizontal: Spacing.xl,
+        paddingTop: Platform.select({ ios: Spacing['4xl'], android: Spacing['2xl'] }),
+        paddingBottom: Spacing['2xl'],
+        paddingHorizontal: Spacing.lg,
         borderBottomLeftRadius: BorderRadius['2xl'],
         borderBottomRightRadius: BorderRadius['2xl'],
     },
@@ -695,14 +695,14 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
     mainCard: {
-        marginHorizontal: Spacing.lg,
-        marginTop: -Spacing.xl,
+        marginHorizontal: Platform.select({ ios: Spacing.lg, android: Spacing.md }),
+        marginTop: -Spacing.md,
         borderRadius: BorderRadius.xl,
         borderWidth: 1,
-        padding: Spacing.xl,
+        padding: Platform.select({ ios: Spacing.xl, android: Spacing.lg }),
     },
     section: {
-        marginBottom: Spacing.xl,
+        marginBottom: Platform.select({ ios: Spacing.xl, android: Spacing.lg }),
     },
     sectionLabel: {
         ...Typography.labelMedium,
@@ -803,7 +803,7 @@ const styles = StyleSheet.create({
         padding: Spacing.xs,
     },
     quickAmountContainer: {
-        marginTop: Spacing.lg,
+        marginTop: Spacing.md,
     },
     quickAmountLabel: {
         ...Typography.labelSmall,
@@ -811,20 +811,21 @@ const styles = StyleSheet.create({
     },
     quickAmountRow: {
         flexDirection: 'row',
-        gap: Spacing.sm,
+        flexWrap: 'wrap',
+        gap: Spacing.xs,
     },
     quickAmountButton: {
         paddingVertical: Spacing.sm,
-        paddingHorizontal: Spacing.md,
+        paddingHorizontal: Platform.select({ ios: Spacing.md, android: Spacing.sm }),
         borderRadius: BorderRadius.sm,
         borderWidth: 1,
     },
     quickAmountText: {
-        ...Typography.labelMedium,
+        ...Typography.labelSmall,
     },
     resultSection: {
-        marginHorizontal: Spacing.lg,
-        marginTop: Spacing.xl,
+        marginHorizontal: Platform.select({ ios: Spacing.lg, android: Spacing.md }),
+        marginTop: Platform.select({ ios: Spacing.xl, android: Spacing.lg }),
     },
     resultCard: {
         borderRadius: BorderRadius.xl,
@@ -854,12 +855,12 @@ const styles = StyleSheet.create({
     },
     resultAmountContainer: {
         alignItems: 'center',
-        marginBottom: Spacing.lg,
+        marginBottom: Spacing.md,
     },
     resultAmount: {
-        ...Typography.displayLarge,
+        ...Typography.headlineLarge,
         color: '#FFFFFF',
-        fontSize: 48,
+        fontSize: Platform.select({ ios: 48, android: 36 }),
     },
     resultCurrency: {
         ...Typography.headlineSmall,
@@ -888,8 +889,8 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
     },
     infoCard: {
-        marginHorizontal: Spacing.lg,
-        marginTop: Spacing.xl,
+        marginHorizontal: Platform.select({ ios: Spacing.lg, android: Spacing.md }),
+        marginTop: Platform.select({ ios: Spacing.xl, android: Spacing.lg }),
         borderRadius: BorderRadius.lg,
         borderWidth: 1,
         padding: Spacing.lg,
@@ -930,8 +931,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'flex-start',
         gap: Spacing.sm,
-        marginHorizontal: Spacing.lg,
-        marginTop: Spacing.xl,
+        marginHorizontal: Platform.select({ ios: Spacing.lg, android: Spacing.md }),
+        marginTop: Platform.select({ ios: Spacing.xl, android: Spacing.lg }),
         padding: Spacing.lg,
     },
     disclaimerText: {

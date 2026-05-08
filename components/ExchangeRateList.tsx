@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { BorderRadius, Colors, Shadows, Spacing, Typography } from '../constants/theme';
 import { useColorScheme } from '../hooks/use-color-scheme';
 import { MONEDAS_PRINCIPALES, TasaCambio, TasaCambioHistorico } from '../types';
@@ -274,17 +274,17 @@ const styles = StyleSheet.create({
   },
   loadingCard: {
     alignItems: 'center',
-    padding: Spacing['3xl'],
+    padding: Spacing['2xl'],
     borderRadius: BorderRadius.xl,
     ...Shadows.md,
   },
   loadingIconContainer: {
-    width: 80,
-    height: 80,
+    width: Platform.select({ ios: 80, android: 64 }),
+    height: Platform.select({ ios: 80, android: 64 }),
     borderRadius: BorderRadius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.xl,
+    marginBottom: Platform.select({ ios: Spacing.xl, android: Spacing.lg }),
   },
   loadingText: {
     ...Typography.headlineSmall,
@@ -303,18 +303,18 @@ const styles = StyleSheet.create({
   },
   errorCard: {
     alignItems: 'center',
-    padding: Spacing['3xl'],
+    padding: Spacing['2xl'],
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
     ...Shadows.md,
   },
   errorIconContainer: {
-    width: 72,
-    height: 72,
+    width: Platform.select({ ios: 72, android: 56 }),
+    height: Platform.select({ ios: 72, android: 56 }),
     borderRadius: BorderRadius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.xl,
+    marginBottom: Platform.select({ ios: Spacing.xl, android: Spacing.lg }),
   },
   errorTitle: {
     ...Typography.headlineSmall,
@@ -323,10 +323,10 @@ const styles = StyleSheet.create({
   errorMessage: {
     ...Typography.bodyMedium,
     textAlign: 'center',
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.lg,
   },
   retryButton: {
-    paddingHorizontal: Spacing['2xl'],
+    paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
   },
@@ -344,13 +344,13 @@ const styles = StyleSheet.create({
   },
   emptyCard: {
     alignItems: 'center',
-    padding: Spacing['3xl'],
+    padding: Spacing['2xl'],
     borderRadius: BorderRadius.xl,
     ...Shadows.sm,
   },
   emptyIconContainer: {
-    width: 64,
-    height: 64,
+    width: Platform.select({ ios: 64, android: 48 }),
+    height: Platform.select({ ios: 64, android: 48 }),
     borderRadius: BorderRadius.full,
     alignItems: 'center',
     justifyContent: 'center',
@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
     ...Shadows.md,
   },
   historicoHeader: {
-    padding: Spacing.lg,
+    padding: Platform.select({ ios: Spacing.lg, android: Spacing.md }),
   },
   historicoDateRow: {
     flexDirection: 'row',
@@ -382,21 +382,21 @@ const styles = StyleSheet.create({
   },
   historicoDate: {
     color: '#FFFFFF',
-    ...Typography.labelLarge,
+    ...Typography.labelMedium,
     textTransform: 'capitalize',
   },
   historicoRates: {
     flexDirection: 'row',
-    padding: Spacing.lg,
+    padding: Platform.select({ ios: Spacing.lg, android: Spacing.md }),
   },
   historicoRateItem: {
     flex: 1,
     alignItems: 'center',
-    paddingHorizontal: Spacing.sm,
+    paddingHorizontal: Platform.select({ ios: Spacing.sm, android: 4 }),
   },
   historicoRateIcon: {
-    width: 32,
-    height: 32,
+    width: Platform.select({ ios: 32, android: 28 }),
+    height: Platform.select({ ios: 32, android: 28 }),
     borderRadius: BorderRadius.full,
     alignItems: 'center',
     justifyContent: 'center',
@@ -405,10 +405,10 @@ const styles = StyleSheet.create({
   historicoRateLabel: {
     ...Typography.labelSmall,
     textTransform: 'uppercase',
-    marginBottom: Spacing.xs,
+    marginBottom: 2,
   },
   historicoRateValue: {
-    ...Typography.headlineMedium,
+    ...Typography.headlineSmall,
   },
   historicoRateCurrency: {
     ...Typography.bodySmall,

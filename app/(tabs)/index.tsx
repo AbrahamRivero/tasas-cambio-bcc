@@ -207,7 +207,7 @@ const loadRates = useCallback(async () => {
           <View style={[styles.footerCard, { backgroundColor: colors.surface, borderColor: colors.cardBorder }]}>
             <Ionicons name="information-circle-outline" size={20} color={colors.textMuted} />
             <Text style={[styles.footerText, { color: colors.textMuted }]}>
-              Las tasas son actualizadas diariamente por el Banco Central de Cuba.
+              Las tasas mostradas son proporcionadas por el Banco Central de Cuba.
               Desliza hacia abajo para actualizar.
             </Text>
           </View>

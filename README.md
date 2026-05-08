@@ -1,4 +1,4 @@
-# Tasas de Cambio - Banco Central de Cuba
+# Tasas Cambio Cuba
 
 Aplicación móvil desarrollada con Expo y React Native para consultar las tasas de cambio oficiales del Banco Central de Cuba.
 
@@ -14,7 +14,7 @@ Aplicación móvil desarrollada con Expo y React Native para consultar las tasas
 ## 📱 Monedas Soportadas
 
 - **USD** - Dólar Estadounidense 🇺🇸
-- **EUR** - Euro 🇪🇺  
+- **EUR** - Euro 🇪🇺
 - **MXN** - Peso Mexicano 🇲🇽
 - **CAD** - Dólar Canadiense 🇨🇦
 
@@ -30,7 +30,7 @@ Aplicación móvil desarrollada con Expo y React Native para consultar las tasas
 ## 📦 Estructura del Proyecto
 
 ```
-tasas-cambio-bc/
+tasas-cambio-cuba/
 ├── app/
 │   ├── (tabs)/
 │   │   ├── index.tsx          # Pantalla de tasas activas
@@ -64,6 +64,7 @@ tasas-cambio-bc/
 
 1. Clone el repositorio
 2. Instale las dependencias:
+
    ```bash
    npm install
    ```
@@ -76,7 +77,7 @@ tasas-cambio-bc/
 ### Ejecución
 
 - **Web**: `npm run web`
-- **Android**: `npm run android` 
+- **Android**: `npm run android`
 - **iOS**: `npm run ios`
 
 ## 📡 API
@@ -96,8 +97,9 @@ La aplicación soporta temas claro y oscuro automáticamente según las preferen
 ### Colores
 
 Los colores principales están definidos en `hooks/useTheme.ts`:
+
 - Primary: Azul #3b82f6
-- Success: Verde #22c55e  
+- Success: Verde #22c55e
 - Warning: Ámbar #f59e0b
 - Error: Rojo #ef4444
 
