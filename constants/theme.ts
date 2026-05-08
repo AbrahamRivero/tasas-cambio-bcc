@@ -51,6 +51,9 @@ export const Colors = {
     gradientPrimary: ['#0066FF', '#0052CC'],
     gradientSuccess: ['#00C48C', '#00A876'],
     gradientCard: ['#FFFFFF', '#F7F9FC'],
+
+    // Icons
+    icon: '#99A1B7',
   },
   dark: {
     // Primary palette
@@ -103,6 +106,9 @@ export const Colors = {
     gradientPrimary: ['#3D8BFF', '#2E7AEE'],
     gradientSuccess: ['#3FB950', '#2EA043'],
     gradientCard: ['#1C2128', '#161B22'],
+
+    // Icons
+    icon: '#6E7681',
   },
 };
 

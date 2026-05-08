@@ -1,5 +1,5 @@
 {
-  "name": "tasas-cambio-bc",
+  "name": "tasas-cambio-cuba",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
@@ -43,6 +43,7 @@
     "@types/react": "~19.1.0",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
+    "expo-dev-client": "~6.0.20",
     "typescript": "~5.9.2"
   },
   "private": true

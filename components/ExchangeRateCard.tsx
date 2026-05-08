@@ -352,32 +352,32 @@ export const ExchangeRateCard: React.FC<ExchangeRateCardProps> = ({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: BorderRadius.xl,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
     overflow: 'hidden',
   },
   accentBar: {
-    height: 4,
+    height: 3,
   },
   header: {
-    padding: Spacing.xl,
-    paddingBottom: Spacing.lg,
+    padding: Platform.select({ ios: Spacing.xl, android: Spacing.lg }),
+    paddingBottom: Platform.select({ ios: Spacing.lg, android: Spacing.md }),
   },
   currencyRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: Spacing['2xl'],
+    marginBottom: Platform.select({ ios: Spacing['2xl'], android: Spacing.lg }),
   },
   flagContainer: {
-    width: 56,
-    height: 56,
+    width: Platform.select({ ios: 56, android: 48 }),
+    height: Platform.select({ ios: 56, android: 48 }),
     borderRadius: BorderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: Spacing.lg,
+    marginRight: Platform.select({ ios: Spacing.lg, android: Spacing.md }),
   },
   flag: {
-    fontSize: 32,
+    fontSize: Platform.select({ ios: 32, android: 26 }),
   },
   currencyDetails: {
     flex: 1,
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   currencyCode: {
-    ...Typography.headlineLarge,
+    ...Typography.headlineMedium,
   },
   liveBadge: {
     flexDirection: 'row',
@@ -408,16 +408,16 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   currencyName: {
-    ...Typography.bodyMedium,
+    ...Typography.bodySmall,
     marginTop: 2,
   },
   mainRateContainer: {
     alignItems: 'center',
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.sm,
   },
   rateLabel: {
     ...Typography.bodySmall,
-    marginBottom: Spacing.xs,
+    marginBottom: 2,
   },
   rateValueRow: {
     flexDirection: 'row',
@@ -425,18 +425,18 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   mainRate: {
-    ...Typography.displayLarge,
+    ...Typography.headlineLarge,
   },
   trendContainer: {
-    marginTop: 8,
+    marginTop: 6,
   },
   rateCurrency: {
-    ...Typography.labelLarge,
-    marginTop: Spacing.xs,
+    ...Typography.labelMedium,
+    marginTop: 2,
   },
   rateSelector: {
     flexDirection: 'row',
-    marginHorizontal: Spacing.lg,
+    marginHorizontal: Platform.select({ ios: Spacing.lg, android: Spacing.md }),
     marginBottom: Spacing.lg,
     padding: 4,
     borderRadius: BorderRadius.md,
@@ -446,7 +446,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.sm,
+    paddingHorizontal: 4,
     borderRadius: BorderRadius.sm,
   },
   rateButtonLabel: {
@@ -455,21 +455,21 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   rateButtonValue: {
-    ...Typography.labelLarge,
+    ...Typography.labelMedium,
   },
   divider: {
     height: 1,
-    marginHorizontal: Spacing.xl,
+    marginHorizontal: Platform.select({ ios: Spacing.xl, android: Spacing.lg }),
   },
   transactionSection: {
-    padding: Spacing.xl,
-    paddingTop: Spacing.lg,
+    padding: Platform.select({ ios: Spacing.xl, android: Spacing.lg }),
+    paddingTop: Platform.select({ ios: Spacing.lg, android: Spacing.md }),
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   sectionTitleRow: {
     flexDirection: 'row',
@@ -489,7 +489,7 @@ const styles = StyleSheet.create({
   transactionCard: {
     flex: 1,
     borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
+    padding: Platform.select({ ios: Spacing.lg, android: Spacing.md }),
     alignItems: 'center',
   },
   transactionIconRow: {
@@ -499,26 +499,26 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   transactionIcon: {
-    width: 28,
-    height: 28,
+    width: Platform.select({ ios: 28, android: 24 }),
+    height: Platform.select({ ios: 28, android: 24 }),
     borderRadius: BorderRadius.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
   transactionLabel: {
-    ...Typography.labelMedium,
+    ...Typography.labelSmall,
     textTransform: 'uppercase',
   },
   transactionValue: {
-    ...Typography.headlineMedium,
+    ...Typography.headlineSmall,
     marginBottom: Spacing.sm,
   },
   transactionCurrency: {
     ...Typography.bodySmall,
   },
   percentageBadge: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 2,
     borderRadius: BorderRadius.sm,
   },
   percentageText: {
@@ -527,8 +527,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   footer: {
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.xl,
+    paddingVertical: Platform.select({ ios: Spacing.md, android: Spacing.sm }),
+    paddingHorizontal: Platform.select({ ios: Spacing.xl, android: Spacing.lg }),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

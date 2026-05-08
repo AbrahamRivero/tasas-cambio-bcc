@@ -268,7 +268,7 @@ export default function HistoricoScreen() {
           <View style={[styles.footerCard, { backgroundColor: colors.surface, borderColor: colors.cardBorder }]}>
             <Ionicons name="shield-checkmark-outline" size={20} color={colors.textMuted} />
             <Text style={[styles.footerText, { color: colors.textMuted }]}>
-              Datos oficiales del Banco Central de Cuba. Los registros históricos
+              Basado en datos del Banco Central de Cuba. Los registros históricos
               se actualizan diariamente.
             </Text>
           </View>
