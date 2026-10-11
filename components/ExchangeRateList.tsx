@@ -1,12 +1,8 @@
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import React from 'react';
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
-import { BorderRadius, Colors, Shadows, Spacing, Typography } from '../constants/theme';
-import { useColorScheme } from '../hooks/use-color-scheme';
-import { MONEDAS_PRINCIPALES, TasaCambio, TasaCambioHistorico } from '../types';
-import { formatDateShort, getCurrencyFlag } from '../utils/formatters';
+import React, { useMemo } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { MONEDAS_PRINCIPALES, TasaCambio, TasaCambioHistorico, isTasasActivasResponse } from '../types';
 import { ExchangeRateCard } from './ExchangeRateCard';
+import { EmptyState, ErrorState, Loading } from './ui/loading-error';
 
 interface ExchangeRateListProps {
   currencies: (TasaCambio | TasaCambioHistorico)[] | null;
@@ -16,145 +12,8 @@ interface ExchangeRateListProps {
   error?: string;
   onRetry?: () => void;
   currencyFilter?: string;
-  isHistorical?: boolean;
   historicalData?: TasaCambioHistorico[];
 }
-
-// Loading Component with Fintech Style
-const Loading: React.FC<{ message?: string }> = ({ message = 'Cargando...' }) => {
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
-
-  return (
-    <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
-      <View style={[styles.loadingCard, { backgroundColor: colors.surface }]}>
-        <View style={[styles.loadingIconContainer, { backgroundColor: colors.primaryLight }]}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-        <Text style={[styles.loadingText, { color: colors.text }]}>{message}</Text>
-        <Text style={[styles.loadingSubtext, { color: colors.textMuted }]}>
-          Conectando con el servidor...
-        </Text>
-      </View>
-    </View>
-  );
-};
-
-// Error Component with Fintech Style
-interface ErrorComponentProps {
-  message: string;
-  onRetry?: () => void;
-}
-
-const ErrorComponent: React.FC<ErrorComponentProps> = ({ message, onRetry }) => {
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
-
-  return (
-    <View style={[styles.errorContainer, { backgroundColor: colors.background }]}>
-      <View style={[styles.errorCard, { backgroundColor: colors.surface, borderColor: colors.cardBorder }]}>
-        <View style={[styles.errorIconContainer, { backgroundColor: colors.errorLight }]}>
-          <Ionicons name="alert-circle" size={32} color={colors.error} />
-        </View>
-        <Text style={[styles.errorTitle, { color: colors.text }]}>Error de conexión</Text>
-        <Text style={[styles.errorMessage, { color: colors.textSecondary }]}>{message}</Text>
-        {onRetry && (
-          <View style={[styles.retryButton, { backgroundColor: colors.primary }]}>
-            <Text 
-              style={styles.retryButtonText}
-              onPress={onRetry}
-            >
-              Reintentar
-            </Text>
-          </View>
-        )}
-      </View>
-    </View>
-  );
-};
-
-// Empty State Component
-const EmptyState: React.FC<{ message: string }> = ({ message }) => {
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
-
-  return (
-    <View style={[styles.emptyContainer, { backgroundColor: colors.background }]}>
-      <View style={[styles.emptyCard, { backgroundColor: colors.surface }]}>
-        <View style={[styles.emptyIconContainer, { backgroundColor: colors.borderLight }]}>
-          <Ionicons name="search-outline" size={32} color={colors.textMuted} />
-        </View>
-        <Text style={[styles.emptyTitle, { color: colors.text }]}>Sin resultados</Text>
-        <Text style={[styles.emptyMessage, { color: colors.textMuted }]}>{message}</Text>
-      </View>
-    </View>
-  );
-};
-
-// Historico Card Component
-interface HistoricalCardProps {
-  data: TasaCambioHistorico;
-  colors: typeof Colors.light;
-  showCurrency?: boolean;
-}
-
-const HistoricalCard: React.FC<HistoricalCardProps> = ({ data, colors, showCurrency }) => {
-  const rates = [
-    { label: 'Oficial', value: data.tasaOficial, icon: 'business' as const },
-    { label: 'Pública', value: data.tasaPublica, icon: 'people' as const },
-    { label: 'Especial', value: data.tasaEspecial, icon: 'star' as const },
-  ];
-
-  return (
-    <View style={[styles.historicoCard, { backgroundColor: colors.surface, borderColor: colors.cardBorder }]}>
-      {/* Date Header */}
-      <LinearGradient
-        colors={colors.gradientPrimary as [string, string]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.historicoHeader}
-      >
-        <View style={styles.historicoDateRow}>
-          <Ionicons name="calendar" size={16} color="#FFFFFF" />
-          <Text style={styles.historicoDate}>{formatDateShort(data.fecha, true)}</Text>
-        </View>
-        {showCurrency && data.codigoMoneda && (
-          <View style={styles.historicoCurrencyBadge}>
-            <Text style={styles.historicoCurrencyFlag}>{getCurrencyFlag(data.codigoMoneda)}</Text>
-            <Text style={styles.historicoCurrencyCode}>{data.codigoMoneda}</Text>
-          </View>
-        )}
-      </LinearGradient>
-
-      {/* Rates Grid */}
-      <View style={styles.historicoRates}>
-        {rates.map((rate, index) => (
-          <View 
-            key={rate.label}
-            style={[
-              styles.historicoRateItem,
-              index < rates.length - 1 && { 
-                borderRightWidth: 1, 
-                borderRightColor: colors.borderLight 
-              }
-            ]}
-          >
-            <View style={[styles.historicoRateIcon, { backgroundColor: colors.primaryLight }]}>
-              <Ionicons name={rate.icon} size={14} color={colors.primary} />
-            </View>
-            <Text style={[styles.historicoRateLabel, { color: colors.textMuted }]}>
-              {rate.label}
-            </Text>
-            <Text style={[styles.historicoRateValue, { color: colors.text }]}>
-              {rate.value.toFixed(2)}
-            </Text>
-            <Text style={[styles.historicoRateCurrency, { color: colors.textMuted }]}>CUP</Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-};
 
 export const ExchangeRateList: React.FC<ExchangeRateListProps> = ({
   currencies,
@@ -164,35 +23,50 @@ export const ExchangeRateList: React.FC<ExchangeRateListProps> = ({
   error,
   onRetry,
   currencyFilter,
-  isHistorical = false,
   historicalData = [],
 }) => {
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  // Latest pre-today record per currency, computed once. Cards receive a
+  // scalar previous record instead of filtering/sorting the whole array
+  // themselves on every render (and never mix currencies in the trend).
+  const previousByCurrency = useMemo(() => {
+    const map = new Map<string, TasaCambioHistorico>();
+    const todayStr = new Date().toDateString();
+    for (const item of historicalData) {
+      if (!item || !item.codigoMoneda || !item.fecha) continue;
+      const date = new Date(item.fecha);
+      if (Number.isNaN(date.getTime())) continue;
+      if (date.toDateString() === todayStr) continue;
+      const prev = map.get(item.codigoMoneda);
+      if (!prev || date.getTime() > new Date(prev.fecha).getTime()) {
+        map.set(item.codigoMoneda, item);
+      }
+    }
+    return map;
+  }, [historicalData]);
 
   if (!currencies) {
     return <Loading message="Cargando tasas de cambio..." />;
   }
 
-  const ratesData: (TasaCambio | TasaCambioHistorico)[] = Array.isArray(currencies) && !isHistorical && currencies.length > 0 && 'tasas' in currencies[0] 
-    ? (currencies[0] as any)?.tasas || [] 
+  const ratesData: (TasaCambio | TasaCambioHistorico)[] = Array.isArray(currencies) && currencies.length > 0 && isTasasActivasResponse(currencies[0])
+    ? currencies[0].tasas
     : (currencies || []);
 
-  const filteredRates = currencyFilter && !isHistorical 
+  const filteredRates = currencyFilter
     ? ratesData.filter((tasa: TasaCambio | TasaCambioHistorico) => {
         const codigo = (tasa as TasaCambio).codigoMoneda || '';
         return codigo.toLowerCase() === currencyFilter.toLowerCase();
       })
     : ratesData;
 
-  const ratesToShow = !isHistorical && !currencyFilter
+  const ratesToShow = !currencyFilter
     ? [...filteredRates].sort((a, b) => {
         const codigoA = (a as TasaCambio).codigoMoneda || '';
         const codigoB = (b as TasaCambio).codigoMoneda || '';
-        
+
         const esPrincipalA = MONEDAS_PRINCIPALES.some(moneda => moneda.codigo === codigoA);
         const esPrincipalB = MONEDAS_PRINCIPALES.some(moneda => moneda.codigo === codigoB);
-        
+
         if (esPrincipalA && !esPrincipalB) return -1;
         if (!esPrincipalA && esPrincipalB) return 1;
         return 0;
@@ -204,234 +78,41 @@ export const ExchangeRateList: React.FC<ExchangeRateListProps> = ({
   }
 
   if (error) {
-    return <ErrorComponent message={error} onRetry={onRetry} />;
+    return <ErrorState message={error} onRetry={onRetry} />;
   }
 
   if (ratesToShow.length === 0) {
     return (
-      <EmptyState 
+      <EmptyState
         message={
-          currencyFilter 
-            ? `No se encontraron tasas para ${currencyFilter.toUpperCase()}` 
+          currencyFilter
+            ? `No se encontraron tasas para ${currencyFilter.toUpperCase()}`
             : 'No hay tasas de cambio disponibles'
         }
       />
     );
   }
 
-  // Historico rendering
-  if (isHistorical) {
-    return (
-      <View style={styles.listContainer}>
-        {ratesToShow.map((tasa: TasaCambio | TasaCambioHistorico, index: number) => {
-          const historicoTasa = tasa as TasaCambioHistorico;
-          return (
-            <HistoricalCard 
-              key={historicoTasa.fecha || index}
-              data={historicoTasa}
-              colors={colors}
-              showCurrency={!currencyFilter}
-            />
-          );
-        })}
-      </View>
-    );
-  }
-
-   return (
-     <View style={styles.listContainer}>
-       {ratesToShow.map((tasa: TasaCambio | TasaCambioHistorico, index: number) => {
-         const tasaCambio = tasa as TasaCambio;
-         
-          // Filter historical data for this specific currency
-          const currencyHistorical = historicalData.filter(item => 
-            item.fecha && new Date(item.fecha) < new Date(tasaCambio.fechaActivacion)
-          );
-          
-           return (
-             <ExchangeRateCard 
-               key={`${tasaCambio.codigoMoneda}-${tasaCambio.fechaActivacion}-${index}`} 
-               tasa={tasaCambio}
-               historicalData={currencyHistorical}
-             />
-          );
-       })}
-     </View>
-   );
+  // Active rates rendering
+  return (
+    <View style={styles.listContainer}>
+      {ratesToShow.map((tasa: TasaCambio | TasaCambioHistorico, index: number) => {
+        const tasaCambio = tasa as TasaCambio;
+        return (
+          <ExchangeRateCard
+            key={`${tasaCambio.codigoMoneda}-${tasaCambio.fechaActivacion}-${index}`}
+            tasa={tasaCambio}
+            previousData={previousByCurrency.get(tasaCambio.codigoMoneda) ?? null}
+          />
+        );
+      })}
+    </View>
+  );
 };
 
 const styles = StyleSheet.create({
   listContainer: {
-    gap: Spacing.lg,
-  },
-  
-  // Loading styles
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing['3xl'],
-  },
-  loadingCard: {
-    alignItems: 'center',
-    padding: Spacing['2xl'],
-    borderRadius: BorderRadius.xl,
-    ...Shadows.md,
-  },
-  loadingIconContainer: {
-    width: Platform.select({ ios: 80, android: 64 }),
-    height: Platform.select({ ios: 80, android: 64 }),
-    borderRadius: BorderRadius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Platform.select({ ios: Spacing.xl, android: Spacing.lg }),
-  },
-  loadingText: {
-    ...Typography.headlineSmall,
-    marginBottom: Spacing.xs,
-  },
-  loadingSubtext: {
-    ...Typography.bodySmall,
-  },
-
-  // Error styles
-  errorContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing['3xl'],
-  },
-  errorCard: {
-    alignItems: 'center',
-    padding: Spacing['2xl'],
-    borderRadius: BorderRadius.xl,
-    borderWidth: 1,
-    ...Shadows.md,
-  },
-  errorIconContainer: {
-    width: Platform.select({ ios: 72, android: 56 }),
-    height: Platform.select({ ios: 72, android: 56 }),
-    borderRadius: BorderRadius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Platform.select({ ios: Spacing.xl, android: Spacing.lg }),
-  },
-  errorTitle: {
-    ...Typography.headlineSmall,
-    marginBottom: Spacing.sm,
-  },
-  errorMessage: {
-    ...Typography.bodyMedium,
-    textAlign: 'center',
-    marginBottom: Spacing.lg,
-  },
-  retryButton: {
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    ...Typography.labelLarge,
-  },
-
-  // Empty styles
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing['3xl'],
-  },
-  emptyCard: {
-    alignItems: 'center',
-    padding: Spacing['2xl'],
-    borderRadius: BorderRadius.xl,
-    ...Shadows.sm,
-  },
-  emptyIconContainer: {
-    width: Platform.select({ ios: 64, android: 48 }),
-    height: Platform.select({ ios: 64, android: 48 }),
-    borderRadius: BorderRadius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.lg,
-  },
-  emptyTitle: {
-    ...Typography.headlineSmall,
-    marginBottom: Spacing.xs,
-  },
-  emptyMessage: {
-    ...Typography.bodyMedium,
-    textAlign: 'center',
-  },
-
-  // Historico styles
-  historicoCard: {
-    borderRadius: BorderRadius.xl,
-    borderWidth: 1,
-    overflow: 'hidden',
-    ...Shadows.md,
-  },
-  historicoHeader: {
-    padding: Platform.select({ ios: Spacing.lg, android: Spacing.md }),
-  },
-  historicoDateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  historicoDate: {
-    color: '#FFFFFF',
-    ...Typography.labelMedium,
-    textTransform: 'capitalize',
-  },
-  historicoRates: {
-    flexDirection: 'row',
-    padding: Platform.select({ ios: Spacing.lg, android: Spacing.md }),
-  },
-  historicoRateItem: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: Platform.select({ ios: Spacing.sm, android: 4 }),
-  },
-  historicoRateIcon: {
-    width: Platform.select({ ios: 32, android: 28 }),
-    height: Platform.select({ ios: 32, android: 28 }),
-    borderRadius: BorderRadius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.sm,
-  },
-  historicoRateLabel: {
-    ...Typography.labelSmall,
-    textTransform: 'uppercase',
-    marginBottom: 2,
-  },
-  historicoRateValue: {
-    ...Typography.headlineSmall,
-  },
-  historicoRateCurrency: {
-    ...Typography.bodySmall,
-    marginTop: 2,
-  },
-  historicoCurrencyBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.full,
-    marginTop: Spacing.sm,
-    alignSelf: 'flex-start',
-  },
-  historicoCurrencyFlag: {
-    fontSize: 14,
-  },
-  historicoCurrencyCode: {
-    color: '#FFFFFF',
-    ...Typography.labelSmall,
-    fontWeight: '600',
+    gap: 10,
   },
 });
 

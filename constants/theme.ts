@@ -1,190 +1,191 @@
-// Fintech Professional Theme - Modern & Sophisticated
+// Apple Human Interface Guidelines — system colors, grouped backgrounds,
+// SF-like hierarchy. Misma forma que antes para no romper imports.
 export const Colors = {
   light: {
-    // Primary palette
-    primary: '#0066FF',
-    primaryLight: '#E6F0FF',
-    primaryDark: '#0052CC',
+    // Primary palette (systemBlue)
+    primary: '#007AFF',
+    primaryLight: '#E5F1FF',
+    primaryDark: '#0051D5',
     
-    // Background hierarchy
-    background: '#F7F9FC',
+    // Background hierarchy (grouped)
+    background: '#F2F2F7',
     surface: '#FFFFFF',
     surfaceElevated: '#FFFFFF',
     
-    // Text hierarchy
-    text: '#1A1D26',
-    textSecondary: '#5E6278',
-    textMuted: '#99A1B7',
+    // Text hierarchy (label / secondary / tertiary)
+    text: '#000000',
+    textSecondary: '#3A3A3C',
+    textMuted: '#8E8E93',
     textInverse: '#FFFFFF',
     
-    // Borders
-    border: '#E8ECF4',
-    borderLight: '#F1F4F9',
+    // Borders (separator)
+    border: '#C6C6C8',
+    borderLight: '#E5E5EA',
     
-    // Semantic colors
-    success: '#00C48C',
-    successLight: '#E8FBF5',
-    successDark: '#00A876',
+    // Semantic colors (systemGreen / Orange / Red)
+    success: '#34C759',
+    successLight: '#E7F9EC',
+    successDark: '#248A3D',
     
-    warning: '#FFB800',
-    warningLight: '#FFF8E6',
-    warningDark: '#E6A600',
+    warning: '#FF9500',
+    warningLight: '#FFF4E5',
+    warningDark: '#C67700',
     
-    error: '#FF4757',
-    errorLight: '#FFEBEE',
-    errorDark: '#E63E4D',
+    error: '#FF3B30',
+    errorLight: '#FFECEB',
+    errorDark: '#D70015',
     
     // Accent colors
-    accent: '#7C3AED',
-    accentLight: '#F3EEFF',
+    accent: '#5856D6',
+    accentLight: '#ECECFA',
     
     // Tab bar
-    tint: '#0066FF',
-    tabIconDefault: '#99A1B7',
-    tabIconSelected: '#0066FF',
+    tint: '#007AFF',
+    tabIconDefault: '#8E8E93',
+    tabIconSelected: '#007AFF',
     
     // Cards
     cardBackground: '#FFFFFF',
-    cardBorder: '#E8ECF4',
+    cardBorder: '#E5E5EA',
     
-    // Gradients (as arrays for LinearGradient)
-    gradientPrimary: ['#0066FF', '#0052CC'],
-    gradientSuccess: ['#00C48C', '#00A876'],
-    gradientCard: ['#FFFFFF', '#F7F9FC'],
+    // Gradients (Apple evita gradientes fuertes; se conservan sutiles)
+    gradientPrimary: ['#0A84FF', '#007AFF'],
+    gradientSuccess: ['#30D158', '#34C759'],
+    gradientCard: ['#FFFFFF', '#F2F2F7'],
 
     // Icons
     icon: '#99A1B7',
   },
   dark: {
     // Primary palette
-    primary: '#3D8BFF',
-    primaryLight: '#1A3A5C',
-    primaryDark: '#2E7AEE',
+    primary: '#0A84FF',
+    primaryLight: '#1C2E4A',
+    primaryDark: '#409CFF',
     
-    // Background hierarchy
-    background: '#0D1117',
-    surface: '#161B22',
-    surfaceElevated: '#1C2128',
+    // Background hierarchy (grouped dark)
+    background: '#000000',
+    surface: '#1C1C1E',
+    surfaceElevated: '#2C2C2E',
     
     // Text hierarchy
-    text: '#F0F6FC',
-    textSecondary: '#8B949E',
-    textMuted: '#6E7681',
-    textInverse: '#0D1117',
+    text: '#FFFFFF',
+    textSecondary: '#EBEBF5',
+    textMuted: '#98989F',
+    textInverse: '#000000',
     
     // Borders
-    border: '#30363D',
-    borderLight: '#21262D',
+    border: '#38383A',
+    borderLight: '#2C2C2E',
     
     // Semantic colors
-    success: '#3FB950',
-    successLight: '#1A3D2E',
-    successDark: '#2EA043',
+    success: '#30D158',
+    successLight: '#1A2E22',
+    successDark: '#30D158',
     
-    warning: '#D29922',
-    warningLight: '#3D2E1A',
-    warningDark: '#BB8009',
+    warning: '#FF9F0A',
+    warningLight: '#2E2417',
+    warningDark: '#FF9F0A',
     
-    error: '#F85149',
-    errorLight: '#3D1A1A',
-    errorDark: '#DA3633',
+    error: '#FF453A',
+    errorLight: '#2E1A1A',
+    errorDark: '#FF6961',
     
     // Accent colors
-    accent: '#A371F7',
-    accentLight: '#2D1F4A',
+    accent: '#5E5CE6',
+    accentLight: '#23233F',
     
     // Tab bar
-    tint: '#3D8BFF',
-    tabIconDefault: '#6E7681',
-    tabIconSelected: '#3D8BFF',
+    tint: '#0A84FF',
+    tabIconDefault: '#98989F',
+    tabIconSelected: '#0A84FF',
     
     // Cards
-    cardBackground: '#161B22',
-    cardBorder: '#30363D',
+    cardBackground: '#1C1C1E',
+    cardBorder: '#38383A',
     
     // Gradients
-    gradientPrimary: ['#3D8BFF', '#2E7AEE'],
-    gradientSuccess: ['#3FB950', '#2EA043'],
-    gradientCard: ['#1C2128', '#161B22'],
+    gradientPrimary: ['#0A84FF', '#0051D5'],
+    gradientSuccess: ['#30D158', '#248A3D'],
+    gradientCard: ['#2C2C2E', '#1C1C1E'],
 
     // Icons
     icon: '#6E7681',
   },
 };
 
-// Typography scale
+// Typography scale — estilo Apple (large title / title / headline / body)
 export const Typography = {
-  // Display
+  // Display (largeTitle)
   displayLarge: {
-    fontSize: 42,
-    fontWeight: '800' as const,
-    letterSpacing: -1.5,
-    lineHeight: 48,
+    fontSize: 34,
+    fontWeight: '700' as const,
+    letterSpacing: 0.4,
+    lineHeight: 41,
   },
   displayMedium: {
-    fontSize: 32,
-    fontWeight: '700' as const,
-    letterSpacing: -0.5,
-    lineHeight: 38,
-  },
-  
-  // Headlines
-  headlineLarge: {
     fontSize: 24,
     fontWeight: '700' as const,
+    letterSpacing: 0.3,
+    lineHeight: 29,
+  },
+  
+  // Headlines (title 1-3)
+  headlineLarge: {
+    fontSize: 22,
+    fontWeight: '600' as const,
     letterSpacing: -0.3,
-    lineHeight: 32,
+    lineHeight: 28,
   },
   headlineMedium: {
     fontSize: 20,
     fontWeight: '600' as const,
-    letterSpacing: 0,
-    lineHeight: 28,
+    letterSpacing: -0.2,
+    lineHeight: 25,
   },
   headlineSmall: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600' as const,
-    letterSpacing: 0,
-    lineHeight: 24,
+    letterSpacing: -0.2,
+    lineHeight: 22,
   },
   
   // Body
   bodyLarge: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '400' as const,
-    letterSpacing: 0.15,
-    lineHeight: 24,
+    letterSpacing: -0.2,
+    lineHeight: 22,
   },
   bodyMedium: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '400' as const,
-    letterSpacing: 0.25,
+    letterSpacing: -0.1,
     lineHeight: 20,
   },
   bodySmall: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '400' as const,
-    letterSpacing: 0.4,
-    lineHeight: 16,
+    letterSpacing: -0.1,
+    lineHeight: 18,
   },
   
-  // Labels
+  // Labels (footnote / caption)
   labelLarge: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600' as const,
-    letterSpacing: 0.1,
+    letterSpacing: -0.1,
     lineHeight: 20,
   },
   labelMedium: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600' as const,
-    letterSpacing: 0.5,
-    lineHeight: 16,
+    letterSpacing: -0.1,
+    lineHeight: 18,
   },
   labelSmall: {
     fontSize: 11,
     fontWeight: '600' as const,
-    letterSpacing: 0.5,
+    letterSpacing: 0.1,
     lineHeight: 14,
   },
 };
@@ -202,44 +203,44 @@ export const Spacing = {
   '5xl': 48,
 };
 
-// Border radius
+// Border radius (Apple continuous: 10 / 12 / 14)
 export const BorderRadius = {
   sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
-  '2xl': 24,
+  md: 10,
+  lg: 14,
+  xl: 18,
+  '2xl': 22,
   full: 9999,
 };
 
-// Shadows
+// Shadows — sutiles estilo iOS; en Android solo elevation baja
 export const Shadows = {
   sm: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
     elevation: 1,
   },
   md: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
-    elevation: 3,
+    elevation: 2,
   },
   lg: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 2,
   },
   xl: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 3,
   },
 };

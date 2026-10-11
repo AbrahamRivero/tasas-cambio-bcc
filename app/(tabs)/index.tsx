@@ -1,113 +1,161 @@
-import { ExchangeRateList } from '@/components/ExchangeRateList';
-import { QuickStatCard } from '@/components/ui/card';
-import { BorderRadius, Colors, Shadows, Spacing, Typography } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme.web';
-import { apiService } from '@/services/api';
-import { TasaCambioHistorico, TasasActivasResponse } from '@/types';
-import { formatDate } from '@/utils/formatters';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import React, { useCallback, useEffect, useState } from 'react';
+import { ExchangeRateList } from "@/components/ExchangeRateList";
 import {
+  BorderRadius,
+  Colors,
+  Shadows,
+  Spacing,
+  Typography,
+} from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { apiService } from "@/services/api";
+import { TasaCambioHistorico, TasasActivasResponse } from "@/types";
+import { formatDate } from "@/utils/formatters";
+import { Ionicons } from "@expo/vector-icons";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  AppState,
   Platform,
   RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function TasasActivasScreen() {
-  const [currencies, setCurrencies] = useState<TasasActivasResponse[] | null>(null);
+  const [currencies, setCurrencies] = useState<TasasActivasResponse[] | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [lastUpdate, setLastUpdate] = useState('');
-  const [lastUpdateTimestamp, setLastUpdateTimestamp] = useState<Date | null>(null);
-  const [historicalData, setHistoricalData] = useState<TasaCambioHistorico[]>([]);
+  const [error, setError] = useState("");
+  const [lastUpdate, setLastUpdate] = useState("");
+  const [lastUpdateTimestamp, setLastUpdateTimestamp] = useState<Date | null>(
+    null,
+  );
+  const [historicalData, setHistoricalData] = useState<TasaCambioHistorico[]>(
+    [],
+  );
+  // Consecutive fetch failures drive the polling backoff (reset on success).
+  const failures = useRef(0);
 
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const colors = Colors[colorScheme ?? "light"];
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
 
-const loadRates = useCallback(async () => {
-    try {
-      setError('');
-      setLoading(true);
-      
-      // Load active rates
-      const [ratesResponse, historicalResponse] = await Promise.all([
-        apiService.getActiveCurrencies(),
-        apiService.getTasasHistorico()
-      ]);
+  const loadRates = useCallback(
+    async (options?: { forceRefresh?: boolean; signal?: AbortSignal }) => {
+      try {
+        setError("");
+        setLoading(true);
 
-      if (ratesResponse.success) {
-        setCurrencies([ratesResponse.data]);
-        setLastUpdate(ratesResponse.data.fechaHoy);
-        setLastUpdateTimestamp(new Date()); // Track when we actually fetched the data
-        
-        // Load historical data if available
-        if (historicalResponse.success) {
-          setHistoricalData(historicalResponse.data);
+        // Load active rates
+        const [ratesResponse, historicalResponse] = await Promise.all([
+          apiService.getActiveCurrencies({
+            signal: options?.signal,
+            forceRefresh: options?.forceRefresh,
+          }),
+          apiService.getTasasHistorico(undefined, {
+            signal: options?.signal,
+            forceRefresh: options?.forceRefresh,
+          }),
+        ]);
+
+        if (ratesResponse.success) {
+          failures.current = 0;
+          setCurrencies([ratesResponse.data]);
+          setLastUpdate(ratesResponse.data.fechaHoy);
+          setLastUpdateTimestamp(new Date()); // Track when we actually fetched the data
+
+          // Load historical data if available
+          if (historicalResponse.success) {
+            setHistoricalData(historicalResponse.data);
+          }
+        } else {
+          failures.current += 1;
+          setError(
+            ratesResponse.error || "Error al cargar las tasas de cambio",
+          );
         }
-      } else {
-        setError(ratesResponse.error || 'Error al cargar las tasas de cambio');
+      } catch {
+        failures.current += 1;
+        setError(
+          "Error de conexión. Verifique su internet e intente nuevamente.",
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-    } catch {
-      setError('Error de conexión. Verifique su internet e intente nuevamente.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
-    loadRates();
-    
-    // Set up automatic refresh every 5 minutes
-    const interval = setInterval(() => {
-      loadRates();
-    }, 5 * 60 * 1000); // 5 minutes in milliseconds
-    
-    return () => clearInterval(interval);
+    const controller = new AbortController();
+    loadRates({ signal: controller.signal });
+
+    // Poll every 5 minutes while the app is foregrounded, backing off
+    // exponentially (capped at 60 min) while fetches keep failing.
+    let timer: ReturnType<typeof setTimeout>;
+    const schedule = () => {
+      const factor = Math.min(2 ** failures.current, 12);
+      timer = setTimeout(
+        async () => {
+          if (AppState.currentState === "active") {
+            await loadRates();
+          }
+          schedule();
+        },
+        5 * 60 * 1000 * factor,
+      );
+    };
+    schedule();
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [loadRates]);
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
     setLoading(true);
-    loadRates();
+    loadRates({ forceRefresh: true });
   }, [loadRates]);
 
   // Calculate stats from tasas
   const stats = React.useMemo(() => {
     if (!currencies || !currencies[0]?.tasas) {
-      return { totalMonedas: 0, usdRate: '0.00', eurRate: '0.00' };
+      return { totalMonedas: 0, usdRate: "0.00", eurRate: "0.00" };
     }
     const tasasList = currencies[0].tasas;
-    const usd = tasasList.find((t: any) => t.codigoMoneda === 'USD');
-    const eur = tasasList.find((t: any) => t.codigoMoneda === 'EUR');
+    const usd = tasasList.find((t) => t.codigoMoneda === "USD");
+    const eur = tasasList.find((t) => t.codigoMoneda === "EUR");
     return {
       totalMonedas: tasasList.length,
-      usdRate: usd?.tasaEspecial?.toFixed(2) || '0.00',
-      eurRate: eur?.tasaEspecial?.toFixed(2) || '0.00',
+      usdRate: usd?.tasaEspecial?.toFixed(2) || "0.00",
+      eurRate: eur?.tasaEspecial?.toFixed(2) || "0.00",
     };
   }, [currencies]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar
-        barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
+        barStyle={colorScheme === "dark" ? "light-content" : "dark-content"}
       />
 
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: insets.top + Spacing.md }
+          {
+            paddingTop: insets.top + Spacing.sm,
+            paddingBottom: tabBarHeight + Spacing.lg,
+          },
         ]}
         refreshControl={
           <RefreshControl
@@ -119,80 +167,82 @@ const loadRates = useCallback(async () => {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero Header */}
+        {/* Cabecera Apple: título grande */}
         <View style={styles.heroSection}>
-          <LinearGradient
-            colors={colors.gradientPrimary as [string, string]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.heroGradient}
+          <Text
+            style={[styles.appleTitle, { color: colors.text }]}
+            maxFontSizeMultiplier={1.15}
           >
-            <View style={styles.heroContent}>
-              <View style={styles.heroHeader}>
-                <View>
-                  <Text style={styles.heroGreeting}>Bienvenido</Text>
-                  <Text style={styles.heroTitle}>Tasas de Cambio</Text>
-                </View>
-                <TouchableOpacity
-                  onPress={handleRefresh}
-                  style={styles.refreshButton}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="refresh" size={20} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
+            BCC
+          </Text>
+          <Text
+            style={[styles.appleSubtitle, { color: colors.textMuted }]}
+            numberOfLines={2}
+          >
+            Referencia ·{" "}
+            {lastUpdateTimestamp
+              ? lastUpdateTimestamp.toLocaleTimeString("es-ES", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : lastUpdate
+                ? formatDate(lastUpdate)
+                : "cargando…"}
+          </Text>
 
-              <View style={styles.heroStats}>
-                <View style={styles.heroStatItem}>
-                  <Text style={styles.heroStatLabel}>USD/CUP</Text>
-                  <Text style={styles.heroStatValue}>{stats.usdRate}</Text>
-                </View>
-                <View style={styles.heroStatDivider} />
-                <View style={styles.heroStatItem}>
-                  <Text style={styles.heroStatLabel}>EUR/CUP</Text>
-                  <Text style={styles.heroStatValue}>{stats.eurRate}</Text>
-                </View>
-              </View>
-
-              <View style={styles.heroFooter}>
-                <View style={styles.statusBadge}>
-                  <View style={styles.statusDot} />
-                  <Text style={styles.statusText}>En vivo</Text>
-                </View>
-<Text style={styles.heroDate}>
-                   {lastUpdateTimestamp 
-                     ? `Actualizado: ${lastUpdateTimestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`
-                     : lastUpdate 
-                       ? formatDate(lastUpdate) 
-                       : 'Cargando...'}
-                 </Text>
-              </View>
+          <View
+            style={[
+              styles.appleHeroCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.cardBorder,
+              },
+            ]}
+          >
+            <View style={styles.heroStats}>
+              {[
+                { label: "USD", value: stats.usdRate },
+                { label: "EUR", value: stats.eurRate },
+                { label: "MONEDAS", value: String(stats.totalMonedas) },
+              ].map((s, i) => (
+                <React.Fragment key={s.label}>
+                  {i > 0 ? (
+                    <View
+                      style={[
+                        styles.heroStatDivider,
+                        { backgroundColor: colors.cardBorder },
+                      ]}
+                    />
+                  ) : null}
+                  <View style={styles.heroStatItem}>
+                    <Text
+                      style={[
+                        styles.heroStatLabel,
+                        { color: colors.textMuted },
+                      ]}
+                    >
+                      {s.label}
+                    </Text>
+                    <Text
+                      style={[styles.heroStatValue, { color: colors.text }]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.6}
+                      maxFontSizeMultiplier={1.15}
+                    >
+                      {s.value}
+                    </Text>
+                  </View>
+                </React.Fragment>
+              ))}
             </View>
-          </LinearGradient>
-        </View>
-
-        {/* Quick Stats */}
-        <View style={styles.quickStatsSection}>
-          <View style={styles.quickStatsRow}>
-            <QuickStatCard
-              label="Monedas"
-              value={stats.totalMonedas}
-              icon="💱"
-              accentColor={colors.primary}
-            />
-            <QuickStatCard
-              label="Fuente"
-              value="BCC"
-              icon="🏛️"
-              accentColor={colors.accent}
-            />
           </View>
         </View>
 
-        {/* Exchange Rates List */}
+        {/* Solo tasas oficiales BCC */}
         <View style={styles.listSection}>
           <ExchangeRateList
-            currencies={currencies as any}
+            currencies={currencies?.[0]?.tasas ?? null}
             loading={loading}
             refreshing={refreshing}
             onRefresh={handleRefresh}
@@ -204,11 +254,22 @@ const loadRates = useCallback(async () => {
 
         {/* Footer Info */}
         <View style={styles.footerSection}>
-          <View style={[styles.footerCard, { backgroundColor: colors.surface, borderColor: colors.cardBorder }]}>
-            <Ionicons name="information-circle-outline" size={20} color={colors.textMuted} />
+          <View
+            style={[
+              styles.footerCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.cardBorder,
+              },
+            ]}
+          >
+            <Ionicons
+              name="information-circle-outline"
+              size={18}
+              color={colors.textMuted}
+            />
             <Text style={[styles.footerText, { color: colors.textMuted }]}>
-              Las tasas mostradas son proporcionadas por el Banco Central de Cuba.
-              Desliza hacia abajo para actualizar.
+              Tasas oficiales del Banco Central de Cuba.
             </Text>
           </View>
         </View>
@@ -225,132 +286,51 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: Spacing['4xl'] + 100,
+    flexGrow: 1,
   },
 
-  // Hero Section
+  // Hero Section — Apple grouped
   heroSection: {
     paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.md,
   },
-  heroGradient: {
-    borderRadius: BorderRadius['2xl'],
-    overflow: 'hidden',
-    ...Platform.select({
-      ios: Shadows.xl,
-      android: Shadows.xl,
-    }),
+  appleTitle: {
+    ...Typography.displayLarge,
   },
-  heroContent: {
-    padding: Spacing['2xl'],
+  appleSubtitle: {
+    ...Typography.bodySmall,
+    marginTop: 2,
   },
-  heroHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: Spacing['2xl'],
-  },
-  heroGreeting: {
-    ...Typography.bodyMedium,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 4,
-  },
-  heroTitle: {
-    ...Typography.headlineLarge,
-    color: '#FFFFFF',
-  },
-  refreshButton: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  appleHeroCard: {
+    borderRadius: BorderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.lg,
+    ...(Platform.OS === "android" ? { elevation: 1 } : Shadows.sm),
   },
   heroStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    marginBottom: Spacing.xl,
+    flexDirection: "row",
+    alignItems: "center",
   },
   heroStatItem: {
     flex: 1,
-    alignItems: 'center',
+    minWidth: 0,
+    flexShrink: 1,
+    alignItems: "center",
+    paddingHorizontal: 2,
   },
   heroStatDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    marginHorizontal: Spacing.lg,
+    width: StyleSheet.hairlineWidth,
+    height: 36,
+    marginHorizontal: Spacing.sm,
+    alignSelf: "center",
   },
   heroStatLabel: {
     ...Typography.labelSmall,
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   heroStatValue: {
-    ...Typography.displayMedium,
-    color: '#FFFFFF',
-  },
-  heroFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 196, 140, 0.3)',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
-    gap: 6,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#00C48C',
-  },
-  statusText: {
-    ...Typography.labelSmall,
-    color: '#FFFFFF',
-  },
-  heroDate: {
-    ...Typography.bodySmall,
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-
-  // Quick Stats Section
-  quickStatsSection: {
-    paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.xl,
-  },
-  quickStatsRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-
-  // Main Section
-  mainSection: {
-    paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.lg,
-  },
-  mainCard: {
-    marginBottom: 0,
-  },
-  verifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
-    gap: 4,
-  },
-  verifiedText: {
-    ...Typography.labelSmall,
+    ...Typography.headlineLarge,
+    fontVariant: ["tabular-nums"],
   },
 
   // List Section
@@ -361,20 +341,22 @@ const styles = StyleSheet.create({
   // Footer Section
   footerSection: {
     paddingHorizontal: Spacing.lg,
-    marginTop: Spacing['3xl'],
-    marginBottom: Spacing.xl,
+    marginTop: Spacing.xl,
+    marginBottom: Spacing.sm,
   },
   footerCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: Spacing.lg,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: Spacing.md,
     borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    gap: Spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   footerText: {
     ...Typography.bodySmall,
     flex: 1,
-    lineHeight: 18,
+    flexShrink: 1,
+    minWidth: 0,
+    marginLeft: Spacing.sm,
+    lineHeight: 20,
   },
 });

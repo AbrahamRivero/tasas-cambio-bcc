@@ -1,24 +1,16 @@
+// AppleCell expandible — estilo Settings: icono 29px, título, valor, chevron.
+// Tap expande detalle (Oficial/Pública/Especial + Compra/Venta). Haptic via activeOpacity.
+
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import React, { useCallback, useMemo, useRef } from 'react';
-import {
-  Animated,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { BorderRadius, Colors, Shadows, Spacing, Typography } from '../constants/theme';
+import * as Haptics from 'expo-haptics';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { BorderRadius, Colors, Spacing, Typography } from '../constants/theme';
 import { useColorScheme } from '../hooks/use-color-scheme';
 import { TasaCambioHistorico } from '../types';
-import { formatCurrency, formatDateShort, getCurrencyFlag } from '../utils/formatters';
-
-// ============================================
-// Types & Interfaces
-// ============================================
-
-type RateType = 'oficial' | 'publica' | 'especial';
+import { formatCurrency } from '../utils/formatters';
+import { applySpread, getRateByType } from '../utils/rates';
+import type { RateType } from '../utils/rates';
 
 interface RateData {
   codigoMoneda: string;
@@ -29,529 +21,201 @@ interface RateData {
   fechaActivacion: string;
 }
 
-interface ExchangeRateCardProps {
+const CURRENCY_ICON: Record<string, { icon: keyof typeof Ionicons.glyphMap; bg: string }> = {
+  USD: { icon: 'logo-usd', bg: '#34C759' },
+  EUR: { icon: 'earth', bg: '#007AFF' },
+  MXN: { icon: 'cash', bg: '#FF9500' },
+  CAD: { icon: 'leaf', bg: '#FF3B30' },
+};
+
+const ExchangeRateCardInner: React.FC<{
   tasa: RateData;
-  onRateTypePress?: (type: RateType) => void;
-  selectedRateType?: RateType;
-  historicalData?: TasaCambioHistorico[];
-}
+  previousData?: TasaCambioHistorico | null;
+}> = ({ tasa, previousData = null }) => {
+  const scheme = useColorScheme();
+  const colors = Colors[scheme ?? 'light'];
+  const [expanded, setExpanded] = useState(false);
+  const [rateType, setRateType] = useState<RateType>('especial');
 
-// ============================================
-// Sub Components
-// ============================================
+  const currentRate = getRateByType(tasa, rateType) || getRateByType(tasa, 'especial');
+  const trendUp = useMemo(() => {
+    if (!previousData) return null;
+    const prev =
+      rateType === 'oficial' ? previousData.tasaOficial
+      : rateType === 'publica' ? previousData.tasaPublica
+      : previousData.tasaEspecial;
+    if (!Number.isFinite(prev) || !Number.isFinite(currentRate)) return null;
+    return currentRate > prev;
+  }, [previousData, currentRate, rateType]);
 
-interface TransactionCardProps {
-  type: 'compra' | 'venta';
-  value: string;
-  percentage: string;
-  colors: typeof Colors.light;
-}
+  const toggle = useCallback(() => {
+    void Haptics.selectionAsync().catch(() => undefined);
+    setExpanded((v) => !v);
+  }, []);
 
-const TransactionCard: React.FC<TransactionCardProps> = ({
-  type,
-  value,
-  percentage,
-  colors,
-}) => {
-  const isCompra = type === 'compra';
-  const iconName = isCompra ? 'arrow-down-circle' : 'arrow-up-circle';
+  const meta = CURRENCY_ICON[tasa.codigoMoneda] ?? { icon: 'cash-outline' as const, bg: colors.primary };
+  const buy = formatCurrency(applySpread(currentRate, 'compra'));
+  const sell = formatCurrency(applySpread(currentRate, 'venta'));
 
   return (
-    <View
-      style={[
-        styles.transactionCard,
-        { backgroundColor: isCompra ? colors.successLight : colors.warningLight }
-      ]}
-      accessibilityRole="text"
-      accessibilityLabel={`${isCompra ? 'Compra' : 'Venta'}: ${value} CUP, ${percentage}`}
-    >
-      <View style={styles.transactionIconRow}>
-        <View style={[
-          styles.transactionIcon,
-          { backgroundColor: isCompra ? colors.success : colors.warning }
-        ]}>
-          <Ionicons
-            name={iconName}
-            size={16}
-            color="#FFFFFF"
-          />
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.cardBorder }]}>
+      <Pressable
+        onPress={toggle}
+        android_ripple={{ color: colors.borderLight }}
+        style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        accessibilityLabel={`${tasa.codigoMoneda}, ${formatCurrency(currentRate, 2)} CUP. Toque para detalle.`}
+      >
+        <View style={[styles.iconBox, { backgroundColor: meta.bg }]}>
+          <Ionicons name={meta.icon} size={17} color="#FFFFFF" />
         </View>
-        <Text style={[
-          styles.transactionLabel,
-          { color: isCompra ? colors.successDark : colors.warningDark }
-        ]}>
-          {isCompra ? 'Compra' : 'Venta'}
-        </Text>
-      </View>
-      <Text style={[styles.transactionValue, { color: colors.text }]}>
-        {value}
-        <Text style={[styles.transactionCurrency, { color: colors.textMuted }]}> CUP</Text>
-      </Text>
-      <View style={[
-        styles.percentageBadge,
-        { backgroundColor: isCompra ? colors.success : colors.warning }
-      ]}>
-        <Text style={styles.percentageText}>{percentage}</Text>
-      </View>
+        <View style={styles.texts}>
+          <View style={styles.titleRow}>
+            <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
+              {tasa.codigoMoneda}
+            </Text>
+            {trendUp !== null ? (
+              <Ionicons
+                name={trendUp ? 'arrow-up-circle' : 'arrow-down-circle'}
+                size={14}
+                color={trendUp ? colors.error : colors.success}
+                style={{ marginLeft: 6 }}
+              />
+            ) : null}
+          </View>
+          <Text style={[styles.subtitle, { color: colors.textMuted }]} numberOfLines={1}>
+            {tasa.nombreMoneda}
+          </Text>
+        </View>
+        <View style={styles.valueWrap}>
+          <Text
+            style={[styles.value, { color: colors.text }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
+            maxFontSizeMultiplier={1.15}
+          >
+            {formatCurrency(currentRate, 2)}
+          </Text>
+          <Text style={[styles.unit, { color: colors.textMuted }]}>CUP</Text>
+        </View>
+        <Ionicons
+          name="chevron-forward" size={16} color={colors.textMuted}
+          style={{ transform: [{ rotate: expanded ? '90deg' : '0deg' }] }}
+        />
+      </Pressable>
+
+      {expanded ? (
+        <View style={[styles.detail, { borderTopColor: colors.cardBorder }]}>
+          <View style={styles.typeRow}>
+            {(['oficial', 'publica', 'especial'] as RateType[]).map((t) => {
+              const active = rateType === t;
+              return (
+                <Pressable
+                  key={t}
+                  onPress={() => {
+                    void Haptics.selectionAsync().catch(() => undefined);
+                    setRateType(t);
+                  }}
+                  style={[
+                    styles.typeBtn,
+                    { backgroundColor: active ? colors.primary : colors.borderLight },
+                  ]}
+                >
+                  <Text style={[styles.typeText, { color: active ? '#FFFFFF' : colors.textMuted }]} numberOfLines={1}>
+                    {t === 'publica' ? 'pública' : t}
+                  </Text>
+                  <Text
+                    style={[styles.typeValue, { color: active ? '#FFFFFF' : colors.text }]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.7}
+                    maxFontSizeMultiplier={1.15}
+                  >
+                    {formatCurrency(getRateByType(tasa, t), 2)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <View style={styles.opsRow}>
+            <View style={[styles.op, { backgroundColor: colors.successLight }]}>
+              <Text style={[styles.opLabel, { color: colors.successDark }]}>COMPRA</Text>
+              <Text
+                style={[styles.opValue, { color: colors.text }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+                maxFontSizeMultiplier={1.15}
+              >
+                {buy}
+              </Text>
+            </View>
+            <View style={[styles.op, { backgroundColor: colors.warningLight }]}>
+              <Text style={[styles.opLabel, { color: colors.warningDark }]}>VENTA</Text>
+              <Text
+                style={[styles.opValue, { color: colors.text }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+                maxFontSizeMultiplier={1.15}
+              >
+                {sell}
+              </Text>
+            </View>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 };
 
-interface RateTypeSelectorProps {
-  rateTypes: { key: RateType; label: string; value: number }[];
-  selectedRateType: RateType;
-  onSelect: (type: RateType) => void;
-  colors: typeof Colors.light;
-}
-
-const RateTypeSelector: React.FC<RateTypeSelectorProps> = ({
-  rateTypes,
-  selectedRateType,
-  onSelect,
-  colors,
-}) => (
-  <View style={[styles.rateSelector, { backgroundColor: colors.borderLight }]}>
-    {rateTypes.map((rate) => {
-      const isSelected = selectedRateType === rate.key;
-      return (
-        <Pressable
-          key={rate.key}
-          onPress={() => onSelect(rate.key)}
-          style={[
-            styles.rateButton,
-            {
-              backgroundColor: isSelected ? colors.surface : 'transparent',
-              ...Platform.select({
-                ios: isSelected ? Shadows.sm : {},
-                android: { elevation: isSelected ? 2 : 0 },
-              }),
-            }
-          ]}
-        >
-          <Text style={[
-            styles.rateButtonLabel,
-            { color: isSelected ? colors.primary : colors.textMuted }
-          ]}>
-            {rate.label}
-          </Text>
-          <Text style={[
-            styles.rateButtonValue,
-            { color: isSelected ? colors.text : colors.textSecondary }
-          ]}>
-            {formatCurrency(rate.value)}
-          </Text>
-        </Pressable>
-      );
-    })}
-  </View>
-);
-
-// ============================================
-// Main Component
-// ============================================
-
-export const ExchangeRateCard: React.FC<ExchangeRateCardProps> = ({
-  tasa,
-  onRateTypePress,
-  selectedRateType = 'especial',
-  historicalData = []
-}) => {
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
-  const cardScale = useRef(new Animated.Value(1)).current;
-  const [internalSelectedRate, setInternalSelectedRate] = React.useState<RateType>(selectedRateType);
-
-  const handleRateSelect = useCallback((type: RateType) => {
-    setInternalSelectedRate(type);
-    onRateTypePress?.(type);
-  }, [onRateTypePress]);
-
-  // Rate types configuration
-  const rateTypes = useMemo(() => [
-    { key: 'oficial' as RateType, label: 'Oficial', value: tasa.tasaOficial },
-    { key: 'publica' as RateType, label: 'Pública', value: tasa.tasaPublica },
-    { key: 'especial' as RateType, label: 'Especial', value: tasa.tasaEspecial },
-  ], [tasa]);
-
-  const currentRate = rateTypes.find((t) => t.key === internalSelectedRate)?.value || tasa.tasaEspecial;
-
-  // Calculate buy/sell values (±2%)
-  const buyValue = formatCurrency(currentRate * 1.02);
-  const sellValue = formatCurrency(currentRate * 0.98);
-
-  // Determine trend indicator based on historical data
-  const trendData = useMemo(() => {
-    if (historicalData.length === 0) {
-      // If no historical data, use default logic
-      return { trendUp: false, hasData: false };
-    }
-
-    // Sort historical data by date (newest first)
-    const sortedHistorical = [...historicalData].sort((a, b) => 
-      new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
-    );
-
-    // Get the most recent historical rate (excluding today)
-    const yesterdayData = sortedHistorical.find(item => {
-      const itemDate = new Date(item.fecha).toDateString();
-      const todayDate = new Date().toDateString();
-      return itemDate !== todayDate;
-    });
-
-    if (!yesterdayData) {
-      return { trendUp: false, hasData: false };
-    }
-
-    // Get the previous rate based on the selected rate type
-    const getPreviousRate = () => {
-      switch (internalSelectedRate) {
-        case 'oficial':
-          return yesterdayData.tasaOficial;
-        case 'publica':
-          return yesterdayData.tasaPublica;
-        case 'especial':
-        default:
-          return yesterdayData.tasaEspecial;
-      }
-    };
-
-    const previousRate = getPreviousRate();
-    const trendUp = currentRate > previousRate;
-
-    return { trendUp, hasData: true, previousRate };
-  }, [historicalData, currentRate, internalSelectedRate]);
-
-  const { trendUp } = trendData;
-
-  return (
-    <Animated.View
-      style={[
-        styles.card,
-        {
-          backgroundColor: colors.cardBackground,
-          borderColor: colors.cardBorder,
-          transform: [{ scale: cardScale }],
-          ...Platform.select({
-            ios: Shadows.lg,
-            android: Shadows.lg,
-          }),
-        },
-      ]}
-      accessibilityRole="summary"
-      accessibilityLabel={`Tasa de cambio para ${tasa.nombreMoneda}`}
-    >
-      {/* Top accent bar */}
-      <LinearGradient
-        colors={colors.gradientPrimary as [string, string]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.accentBar}
-      />
-
-      {/* Header Section */}
-      <View style={styles.header}>
-        {/* Currency Info */}
-        <View style={styles.currencyRow}>
-          <View style={[styles.flagContainer, { backgroundColor: colors.primaryLight }]}>
-            <Text style={styles.flag} accessibilityLabel={`Bandera de ${tasa.nombreMoneda}`}>
-              {getCurrencyFlag(tasa.codigoMoneda)}
-            </Text>
-          </View>
-          <View style={styles.currencyDetails}>
-            <View style={styles.currencyCodeRow}>
-              <Text style={[styles.currencyCode, { color: colors.text }]}>
-                {tasa.codigoMoneda}
-              </Text>
-            </View>
-            <Text style={[styles.currencyName, { color: colors.textSecondary }]}>
-              {tasa.nombreMoneda}
-            </Text>
-          </View>
-        </View>
-
-        {/* Main Rate Display */}
-        <View style={styles.mainRateContainer}>
-          <Text style={[styles.rateLabel, { color: colors.textMuted }]}>
-            1 {tasa.codigoMoneda} equivale a
-          </Text>
-          <View style={styles.rateValueRow}>
-            <Text style={[styles.mainRate, { color: colors.text }]}>
-              {formatCurrency(currentRate, 2)}
-            </Text>
-            <View style={styles.trendContainer}>
-              <Ionicons
-                name={trendUp ? 'trending-up' : 'trending-down'}
-                size={20}
-                color={trendUp ? colors.error : colors.success}
-              />
-            </View>
-          </View>
-          <Text style={[styles.rateCurrency, { color: colors.primary }]}>CUP</Text>
-        </View>
-      </View>
-
-      {/* Rate Type Selector */}
-      <RateTypeSelector
-        rateTypes={rateTypes}
-        selectedRateType={internalSelectedRate}
-        onSelect={handleRateSelect}
-        colors={colors}
-      />
-
-      {/* Divider */}
-      <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
-
-      {/* Buy/Sell Section */}
-      <View style={styles.transactionSection}>
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleRow}>
-            <Ionicons name="swap-horizontal" size={18} color={colors.primary} />
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Operaciones
-            </Text>
-          </View>
-          <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>
-            Spread de ±2%
-          </Text>
-        </View>
-        <View style={styles.transactionGrid}>
-          <TransactionCard
-            type="compra"
-            value={buyValue}
-            percentage="+2%"
-            colors={colors}
-          />
-          <TransactionCard
-            type="venta"
-            value={sellValue}
-            percentage="-2%"
-            colors={colors}
-          />
-        </View>
-      </View>
-
-      {/* Footer */}
-      <View style={[styles.footer, { backgroundColor: colors.borderLight }]}>
-        <View style={styles.footerContent}>
-          <Ionicons name="time-outline" size={14} color={colors.textMuted} />
-          <Text style={[styles.updateText, { color: colors.textMuted }]}>
-            {formatDateShort(tasa.fechaActivacion, true)}
-          </Text>
-        </View>
-        <View style={styles.footerBadge}>
-          <Text style={[styles.footerBadgeText, { color: colors.primary }]}>BCC</Text>
-        </View>
-      </View>
-    </Animated.View>
-  );
-};
-
-// ============================================
-// Styles
-// ============================================
+export const ExchangeRateCard = React.memo(ExchangeRateCardInner);
+export default ExchangeRateCard;
 
 const styles = StyleSheet.create({
   card: {
     borderRadius: BorderRadius.lg,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4 },
+      android: { elevation: 1 },
+    }),
   },
-  accentBar: {
-    height: 3,
-  },
-  header: {
-    padding: Platform.select({ ios: Spacing.xl, android: Spacing.lg }),
-    paddingBottom: Platform.select({ ios: Spacing.lg, android: Spacing.md }),
-  },
-  currencyRow: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: Platform.select({ ios: Spacing['2xl'], android: Spacing.lg }),
-  },
-  flagContainer: {
-    width: Platform.select({ ios: 56, android: 48 }),
-    height: Platform.select({ ios: 56, android: 48 }),
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: Platform.select({ ios: Spacing.lg, android: Spacing.md }),
-  },
-  flag: {
-    fontSize: Platform.select({ ios: 32, android: 26 }),
-  },
-  currencyDetails: {
-    flex: 1,
-  },
-  currencyCodeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  currencyCode: {
-    ...Typography.headlineMedium,
-  },
-  liveBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
-    gap: 4,
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  liveText: {
-    ...Typography.labelSmall,
-    textTransform: 'uppercase',
-  },
-  currencyName: {
-    ...Typography.bodySmall,
-    marginTop: 2,
-  },
-  mainRateContainer: {
-    alignItems: 'center',
+    minHeight: 64,
+    paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
   },
-  rateLabel: {
-    ...Typography.bodySmall,
-    marginBottom: 2,
+  iconBox: {
+    width: 32, height: 32, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+    marginRight: Spacing.md,
   },
-  rateValueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
+  texts: { flex: 1, minWidth: 0, flexShrink: 1 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', minWidth: 0 },
+  title: { ...Typography.bodyLarge, fontWeight: '600' as const },
+  subtitle: { ...Typography.bodySmall, marginTop: 1 },
+  valueWrap: { flexShrink: 1, minWidth: 0, alignItems: 'flex-end', marginLeft: Spacing.sm },
+  value: { ...Typography.headlineSmall, fontWeight: '600' as const, fontVariant: ['tabular-nums'], textAlign: 'right' as const },
+  unit: { ...Typography.bodySmall, marginTop: 1 },
+  detail: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.md,
   },
-  mainRate: {
-    ...Typography.headlineLarge,
+  typeRow: { flexDirection: 'row', marginHorizontal: -4, marginBottom: Spacing.md },
+  typeBtn: {
+    flex: 1, minWidth: 0, flexShrink: 1, marginHorizontal: 4, borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.sm, paddingHorizontal: 2, alignItems: 'center',
   },
-  trendContainer: {
-    marginTop: 6,
-  },
-  rateCurrency: {
-    ...Typography.labelMedium,
-    marginTop: 2,
-  },
-  rateSelector: {
-    flexDirection: 'row',
-    marginHorizontal: Platform.select({ ios: Spacing.lg, android: Spacing.md }),
-    marginBottom: Spacing.lg,
-    padding: 4,
-    borderRadius: BorderRadius.md,
-    gap: 4,
-  },
-  rateButton: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: 4,
-    borderRadius: BorderRadius.sm,
-  },
-  rateButtonLabel: {
-    ...Typography.labelSmall,
-    textTransform: 'uppercase',
-    marginBottom: 2,
-  },
-  rateButtonValue: {
-    ...Typography.labelMedium,
-  },
-  divider: {
-    height: 1,
-    marginHorizontal: Platform.select({ ios: Spacing.xl, android: Spacing.lg }),
-  },
-  transactionSection: {
-    padding: Platform.select({ ios: Spacing.xl, android: Spacing.lg }),
-    paddingTop: Platform.select({ ios: Spacing.lg, android: Spacing.md }),
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  sectionTitle: {
-    ...Typography.headlineSmall,
-  },
-  sectionSubtitle: {
-    ...Typography.bodySmall,
-  },
-  transactionGrid: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  transactionCard: {
-    flex: 1,
-    borderRadius: BorderRadius.lg,
-    padding: Platform.select({ ios: Spacing.lg, android: Spacing.md }),
-    alignItems: 'center',
-  },
-  transactionIconRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  transactionIcon: {
-    width: Platform.select({ ios: 28, android: 24 }),
-    height: Platform.select({ ios: 28, android: 24 }),
-    borderRadius: BorderRadius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  transactionLabel: {
-    ...Typography.labelSmall,
-    textTransform: 'uppercase',
-  },
-  transactionValue: {
-    ...Typography.headlineSmall,
-    marginBottom: Spacing.sm,
-  },
-  transactionCurrency: {
-    ...Typography.bodySmall,
-  },
-  percentageBadge: {
-    paddingHorizontal: Spacing.xs,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.sm,
-  },
-  percentageText: {
-    color: '#FFFFFF',
-    ...Typography.labelSmall,
-    fontWeight: '700',
-  },
-  footer: {
-    paddingVertical: Platform.select({ ios: Spacing.md, android: Spacing.sm }),
-    paddingHorizontal: Platform.select({ ios: Spacing.xl, android: Spacing.lg }),
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  footerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  updateText: {
-    ...Typography.bodySmall,
-  },
-  footerBadge: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
-    borderColor: 'currentColor',
-  },
-  footerBadgeText: {
-    ...Typography.labelSmall,
-    fontWeight: '700',
-  },
+  typeText: { ...Typography.labelSmall, textTransform: 'capitalize' as const },
+  typeValue: { ...Typography.labelMedium, fontVariant: ['tabular-nums'], marginTop: 2 },
+  opsRow: { flexDirection: 'row', marginHorizontal: -4 },
+  op: { flex: 1, minWidth: 0, flexShrink: 1, marginHorizontal: 4, borderRadius: BorderRadius.md, padding: Spacing.md, alignItems: 'center' },
+  opLabel: { ...Typography.labelSmall },
+  opValue: { ...Typography.headlineSmall, fontVariant: ['tabular-nums'], marginTop: 4 },
 });
-
-export default ExchangeRateCard;

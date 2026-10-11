@@ -111,6 +111,13 @@ Los colores principales están definidos en `hooks/useTheme.ts`:
 4. Push a la rama: `git push origin feature/amazing-feature`
 5. Abra un Pull Request
 
+## 🔑 Firma de la app (Android)
+
+- La firma usa el keystore local `credentials/android/keystore.jks` y los passwords de `credentials.json`. Ambos están ignorados por git: **nunca commitear ninguno de los dos**. `credentials.json.sample` es la plantilla commiteada.
+- Los builds EAS usan por defecto credenciales `remote` (gestionadas por EAS), así que `credentials.json` no hace falta para desplegar. Solo el modo `"credentialsSource": "local"` en `eas.json` lo lee.
+- Para rotar passwords sin cambiar la clave (seguro para Play Store): `keytool -storepasswd` + `keytool -keypasswd`, comprobar que los fingerprints SHA1/SHA256 son idénticos antes y después, y actualizar `credentials.json`.
+- Un hook pre-commit local (`.git/hooks/pre-commit`) bloquea commitear secretos; activar además la protección push de GitHub como red del lado servidor.
+
 ## 📄 Licencia
 
 Este proyecto está bajo la Licencia MIT.

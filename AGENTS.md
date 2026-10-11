@@ -41,3 +41,24 @@
 - EAS configured in `eas.json`
 - Android package: `com.tasascambio.cuba`
 - Run `eas build -p android --profile preview` to build Android APK
+
+## Code Review Agents
+
+- Three specialized reviewers run in parallel over the same diff: `security-reviewer`, `performance-reviewer`, `maintainability-reviewer`; then `review-orchestrator` merges the three reports into one verdict (`block` / `approve_with_comments` / `approve`).
+- **OpenCode**: agents in `.opencode/agents/` (invoke via `@mention` or the Task tool). These are the active ones in this environment.
+- **Claude Code**: wrappers in `.claude/agents/` (same behavior, Claude frontmatter).
+- **Canonical specs** (do not diverge): `.agents/review-kit/{security,performance,maintainability,orchestrator}-agent/AGENTS.md`, shared report schema in `.agents/review-kit/_shared/report-schema.md`.
+- A missing or failed reviewer is never an approval: absence of review is not evidence of quality. No real security coverage means `block`.
+
+## Skills
+
+- Canonical location: `.agents/skills/<name>/SKILL.md` (auto-discovered via the `skill` tool).
+- `verify` (`.claude/skills/verify/SKILL.md`): static checks + run recipe for verifying changes on a local dev instance.
+
+## App Signing
+
+- Android signing uses a local keystore at `credentials/android/keystore.jks` (git-ignored, never commit it or its passwords).
+- `credentials.json` (git-ignored) holds the keystore passwords for local/EAS-local builds; `credentials.json.sample` is the committed template.
+- Default EAS builds use `remote` (EAS-managed) credentials, so `credentials.json` is not needed for deploys. Only `local` credential mode (`"credentialsSource": "local"` in `eas.json`) reads it.
+- To rotate passwords without changing the key (Play Store safe): `keytool -storepasswd` + `keytool -keypasswd`, verify identical SHA1/SHA256 fingerprints before and after, then update `credentials.json`.
+- A pre-commit hook (`.git/hooks/pre-commit`, local-only) blocks committing secrets; enable GitHub push protection as the server-side net.

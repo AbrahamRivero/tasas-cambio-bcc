@@ -1,0 +1,150 @@
+// Dominio separado: BCC (oficial) vs elToque (informal / calle).
+// Regla inviolable: nunca mezclar valores entre fuentes para cálculo,
+// promedio, tendencia o conversión. Solo vista lado-a-lado explícita.
+
+export type RateSource = 'BCC' | 'ELTOQUE';
+
+export const SOURCE_META: Record<
+  RateSource,
+  { short: string; long: string; legal: string }
+> = {
+  BCC: {
+    short: 'BCC',
+    long: 'Oficial BCC',
+    legal: 'Tasa oficial · instituciones estatales',
+  },
+  ELTOQUE: {
+    short: 'elToque',
+    long: 'Informal calle',
+    legal: 'Referencia informal de calle · no oficial · uso no estatal',
+  },
+};
+
+// --- BCC (oficial) re-exporta el modelo existente sin mutarlo ---
+export type { TasaCambio, TasaCambioHistorico, TasasActivasResponse } from '../../types';
+
+// --- elToque (informal) ---
+// Payload crudo del proxy (el proxy habla con tasas.eltoque.com).
+// Nunca llamar a tasas.eltoque.com directo desde el móvil (Bearer exfiltrable).
+export interface ElToqueRawResponse {
+  date: string;
+  hour: number;
+  minutes: number;
+  seconds: number;
+  tasas: Record<string, unknown>;
+}
+
+export const ELTOQUE_CODES = ['USD', 'MLC', 'EUR', 'BTC', 'TRX', 'USDT_TRC20'] as const;
+export type ElToqueCode = (typeof ELTOQUE_CODES)[number];
+/** Claves tal como las envía la API (ECU = euro, unidad monetaria europea). */
+const ELTOQUE_RAW_KEYS = ['USD', 'MLC', 'ECU', 'BTC', 'TRX', 'USDT_TRC20'] as const;
+/** Traducción clave cruda -> código normalizado. */
+const RAW_TO_CODE: Record<string, ElToqueCode> = {
+  USD: 'USD',
+  MLC: 'MLC',
+  ECU: 'EUR',
+  BTC: 'BTC',
+  TRX: 'TRX',
+  USDT_TRC20: 'USDT_TRC20',
+};
+
+export interface ElToqueRate {
+  code: ElToqueCode;
+  name: string;
+  /** Valor en CUP según mercado informal. No comparable con tasa BCC. */
+  value: number;
+  source: 'ELTOQUE';
+  date: string;
+  fetchedAt: string;
+}
+
+export interface ElToqueDaily {
+  date: string;
+  rates: ElToqueRate[];
+  fetchedAt: string;
+  /** True si viene de almacenamiento local por falta de red (fecha visible en UI). */
+  stale?: boolean;
+}
+
+// Solo códigos que existen en ambas fuentes pueden compararse lado-a-lado.
+// BTC/TRX/USDT no tienen equivalente BCC: jamás aparecen en Comparar.
+export const COMPARABLE_CODES = ['USD', 'MLC', 'EUR'] as const;
+export type ComparableCode = (typeof COMPARABLE_CODES)[number];
+
+export interface CompareRow {
+  code: ComparableCode;
+  bccValue: number | null;
+  elToqueValue: number | null;
+  /** (informal - oficial) / oficial, solo informativo. No usar para convertir. */
+  spreadPct: number | null;
+}
+
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function isElToqueResponse(x: unknown): x is ElToqueRawResponse {
+  if (!x || typeof x !== 'object') return false;
+  const r = x as Record<string, unknown>;
+  if (typeof r.date !== 'string' || !DATE_RE.test(r.date)) return false;
+  if (!isFiniteNumber(r.hour) || !isFiniteNumber(r.minutes)) return false;
+  if (!r.tasas || typeof r.tasas !== 'object') return false;
+  return true;
+}
+
+export function isValidElToqueTasas(tasas: Record<string, unknown>): boolean {
+  for (const code of ELTOQUE_RAW_KEYS) {
+    const v = tasas[code];
+    // Códigos elToque son opcionales por día, pero si vienen deben ser números finitos.
+    if (v !== undefined && !isFiniteNumber(v)) return false;
+  }
+  return true;
+}
+
+const ELTOQUE_NAMES: Record<ElToqueCode, string> = {
+  USD: 'Dólar',
+  MLC: 'MLC',
+  EUR: 'Euro',
+  BTC: 'Bitcoin',
+  TRX: 'Tron',
+  USDT_TRC20: 'Tether',
+};
+
+export function mapElToqueToRates(raw: ElToqueRawResponse, fetchedAt: string): ElToqueRate[] {
+  if (!isElToqueResponse(raw)) return [];
+  const tasas = raw.tasas as Record<string, unknown>;
+  if (!isValidElToqueTasas(tasas)) return [];
+  const out: ElToqueRate[] = [];
+  for (const rawKey of ELTOQUE_RAW_KEYS) {
+    const v = tasas[rawKey];
+    if (!isFiniteNumber(v) || v <= 0) continue;
+    const code = RAW_TO_CODE[rawKey];
+    out.push({
+      code,
+      name: ELTOQUE_NAMES[code],
+      value: v,
+      source: 'ELTOQUE',
+      date: raw.date,
+      fetchedAt,
+    });
+  }
+  return out;
+}
+
+export function buildCompareRows(
+  bccByCode: Map<string, number>,
+  eltoque: ElToqueRate[],
+): CompareRow[] {
+  const informal = new Map(eltoque.map((r) => [r.code, r.value]));
+  return COMPARABLE_CODES.map((code) => {
+    const bccValue = bccByCode.get(code) ?? null;
+    const elToqueValue = informal.get(code) ?? null;
+    const spreadPct =
+      bccValue !== null && elToqueValue !== null && bccValue > 0
+        ? (elToqueValue - bccValue) / bccValue
+        : null;
+    return { code, bccValue, elToqueValue, spreadPct };
+  }).filter((r) => r.bccValue !== null || r.elToqueValue !== null);
+}

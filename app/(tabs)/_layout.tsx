@@ -1,135 +1,108 @@
 import { HapticTab } from '@/components/ui/haptic-tab';
-import { BorderRadius, Colors } from '@/constants/theme';
+import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const isDark = colorScheme === 'dark';
-  const insets = useSafeAreaInsets();
+  const { bottom } = useSafeAreaInsets();
+  // Altura base iOS 49 + inset (gestos/botones); sin huecos ni solapes.
+  const barHeight = (Platform.OS === 'ios' ? 49 : 56) + bottom;
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colors.primary,
+        tabBarActiveTintColor: colors.tint,
         tabBarInactiveTintColor: colors.tabIconDefault,
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarStyle: {
-          position: 'absolute',
-          bottom: insets.bottom,
-          left: 0,
-          right: 0,
-          height: Platform.OS === 'ios' ? 92 : 72,
-          backgroundColor: isDark ? 'rgba(22, 27, 34, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-          borderTopWidth: 0,
-          paddingTop: 8,
-          paddingHorizontal: 16,
-          paddingBottom: 8,
-          ...Platform.select({
-            ios: {
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: -4 },
-              shadowOpacity: 0.1,
-              shadowRadius: 12,
-            },
-            android: {
-              elevation: 8,
-            },
-          }),
+          height: barHeight,
+          backgroundColor: isDark ? 'rgba(28,28,30,0.92)' : 'rgba(255,255,255,0.92)',
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: colors.cardBorder,
+          paddingTop: 6,
+          paddingBottom: Math.max(bottom, Platform.OS === 'ios' ? 8 : 6),
+          elevation: 0,
         },
         tabBarBackground: () => (
-          Platform.OS === 'ios' ? (
-            <BlurView
-              intensity={80}
-              style={StyleSheet.absoluteFill}
-              tint={isDark ? 'dark' : 'light'}
-            />
-          ) : null
+          <BlurView
+            intensity={90}
+            style={StyleSheet.absoluteFill}
+            tint={isDark ? 'dark' : 'light'}
+          />
         ),
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
-          letterSpacing: 0.3,
-          marginTop: 4,
+          fontSize: 10,
+          fontWeight: '500',
+          letterSpacing: 0.1,
+          marginTop: 2,
         },
         tabBarIconStyle: {
-          marginTop: 4,
+          marginTop: 2,
         },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Tasas Activas',
+          title: 'BCC',
           tabBarIcon: ({ color, focused }) => (
-            <View style={[
-              styles.iconContainer,
-              focused && { backgroundColor: `${colors.primary}15` }
-            ]}>
-              <Ionicons
-                size={24}
-                name={focused ? 'today' : 'today-outline'}
-                color={color}
-              />
-            </View>
+            <Ionicons
+              size={26}
+              name={focused ? 'business' : 'business-outline'}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="eltoque"
+        options={{
+          title: 'elToque',
+          tabBarBadge: undefined,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              size={26}
+              name={focused ? 'storefront' : 'storefront-outline'}
+              color={color}
+            />
           ),
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
-          title: 'Histórico',
+          title: 'Historial',
           tabBarIcon: ({ color, focused }) => (
-            <View style={[
-              styles.iconContainer,
-              focused && { backgroundColor: `${colors.accent}15` }
-            ]}>
-              <Ionicons
-                size={24}
-                name={focused ? 'time' : 'time-outline'}
-                color={focused ? colors.accent : color}
-              />
-            </View>
+            <Ionicons
+              size={26}
+              name={focused ? 'time' : 'time-outline'}
+              color={color}
+            />
           ),
-          tabBarActiveTintColor: colors.accent,
         }}
       />
       <Tabs.Screen
         name="converter"
         options={{
-          title: 'Calculadora',
+          title: 'Convertir',
           tabBarIcon: ({ color, focused }) => (
-            <View style={[
-              styles.iconContainer,
-              focused && { backgroundColor: `${colors.success}15` }
-            ]}>
-              <Ionicons
-                size={24}
-                name={focused ? 'calculator' : 'calculator-outline'}
-                color={focused ? colors.success : color}
-              />
-            </View>
+            <Ionicons
+              size={26}
+              name={focused ? 'calculator' : 'calculator-outline'}
+              color={color}
+            />
           ),
-          tabBarActiveTintColor: colors.success,
         }}
       />
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  iconContainer: {
-    width: 44,
-    height: 32,
-    borderRadius: BorderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

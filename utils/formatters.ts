@@ -1,3 +1,5 @@
+import { MONEDAS_PRINCIPALES } from '../types';
+
 export const formatCurrency = (value: number, decimals = 2): string => {
   return value.toLocaleString('es-ES', {
     minimumFractionDigits: decimals,
@@ -54,13 +56,9 @@ export const getCurrencyFlag = (codigo: string): string => {
   return flags[codigo.toUpperCase()] || '💱';
 };
 
-export const getExchangeRateColor = (rate: number): string => {
-  if (rate < 100) return 'text-success-600';
-  if (rate < 200) return 'text-warning-600';
-  return 'text-error-600';
-};
-
-const PRIORITY_CURRENCIES = ['USD', 'EUR', 'CAD', 'MXN'];
+// Single source of truth for currency priority, derived from
+// MONEDAS_PRINCIPALES so every screen orders currencies the same way.
+const PRIORITY_CURRENCIES: string[] = MONEDAS_PRINCIPALES.map((m) => m.codigo);
 
 export const sortCurrencies = (currencies: string[]): string[] => {
   return [...currencies].sort((a, b) => {
