@@ -5,7 +5,7 @@ Todos los cambios relevantes de este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/)
 y este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
-## [No publicado]
+## [1.2.0] - 2026-10-19
 
 ### Agregado
 
@@ -39,6 +39,7 @@ y este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 - Los perfiles `preview` y `production` de `eas.json` generan ahora APK
   (`android.buildType: "apk"`) para distribución interna en Apklis.
 - Los scripts `android` e `ios` pasan a usar `expo run:*` (build nativo).
+- Versión de la app 1.1.0 → 1.2.0.
 
 ### Corregido
 
@@ -95,6 +96,6 @@ y este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
   (activas e histórico), filtro por monedas (USD, EUR, MXN, CAD y otras) y
   convertidor, con soporte de modo claro/oscuro.
 
-[No publicado]: https://github.com/AbrahamRivero/tasas-cambio-bcc/compare/v1.1.0...HEAD
+[1.2.0]: https://github.com/AbrahamRivero/tasas-cambio-bcc/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/AbrahamRivero/tasas-cambio-bcc/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/AbrahamRivero/tasas-cambio-bcc/releases/tag/v1.0.0
