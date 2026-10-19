@@ -62,8 +62,15 @@
 ## Build & Deploy
 
 - EAS configured in `eas.json`
-- Android package: `com.tasascambio.cuba`
+- Android package: `com.riveromartinezabraham.tasascambiobc`
 - Run `eas build -p android --profile preview` to build Android APK
+- **Versión de la APK**: se gestiona en local (`"appVersionSource": "local"` en
+  `eas.json`). En cada release hay que subir `expo.version` y
+  `expo.android.versionCode` en `app.json`; el `versionCode` debe ser **mayor**
+  que el último publicado en Apklis (1.1.0 = 12, 1.2.0 = 13) o la tienda
+  rechaza la subida con «ya existe una versión superior». `android/` está
+  git-ignorado (`expo prebuild`), así que `app.json` es la fuente de verdad: no
+  usar el contador remoto de EAS, que se quedó clavado en 12.
 
 ## Code Review Agents
 

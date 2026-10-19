@@ -18,7 +18,7 @@
         "monochromeImage": "./assets/images/favicon.png"
       },
       "predictiveBackGestureEnabled": false,
-      "versionCode": 2,
+      "versionCode": 13,
       "package": "com.riveromartinezabraham.tasascambiobc"
     },
     "plugins": [
