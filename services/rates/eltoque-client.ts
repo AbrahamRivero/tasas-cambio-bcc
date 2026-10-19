@@ -73,7 +73,7 @@ function getProxyBaseUrl(override?: string): string | null {
   const raw =
     override ??
     (typeof process !== 'undefined'
-      ? (process.env as Record<string, string | undefined>).EXPO_PUBLIC_ELTOQUE_PROXY_URL
+      ? process.env.EXPO_PUBLIC_ELTOQUE_PROXY_URL
       : undefined);
   if (!raw || typeof raw !== 'string' || !raw.trim()) return null;
   const trimmed = raw.trim().replace(/\/+$/, '');
@@ -85,8 +85,8 @@ function getApiKey(override?: string): string | null {
   const raw =
     override ??
     (typeof process !== 'undefined'
-      ? ((process.env as Record<string, string | undefined>).EXPO_PUBLIC_ELTOQUE_API_KEY ??
-        (process.env as Record<string, string | undefined>).ELTOQUE_API_KEY)
+      ? (process.env.EXPO_PUBLIC_ELTOQUE_API_KEY ??
+        process.env.ELTOQUE_API_KEY)
       : undefined);
   if (!raw || typeof raw !== 'string' || raw.trim().length < 20) return null;
   return raw.trim();
