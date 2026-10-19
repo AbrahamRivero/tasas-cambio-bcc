@@ -357,7 +357,8 @@ export class ElToqueClient {
   /**
    * cubanomic (widget público de elToque): mismo TRMI, sin key ni VPN.
    * Ventana `day 07:00:00` → `day+1 07:00:00` (fin de ventana = el día que
-   * elToque publica como TRMI). El valor publicado es la mediana del día.
+   * elToque publica como TRMI). El valor de cada serie es el que publica el
+   * widget: mediana si hay ofertas suficientes, EMA si la serie es flaca.
    * A la ventana vigente se le suma la serie del canal Zelle (ver
    * fetchCubanomicZelle).
    */
@@ -425,7 +426,7 @@ export class ElToqueClient {
       day,
       fetchedAt,
       // Solo la ventana vigente (hoy) puede venir sin mensajes: cubanomic
-      // devuelve entonces la mediana arrastrada de días previos.
+      // devuelve entonces el valor arrastrado de días previos.
       isCurrentWindow,
     );
     if (rates.length === 0) {

@@ -170,8 +170,9 @@ export function mapElToqueToRates(
 // --- cubanomic (fuente del widget de elToque) ---
 // api.cubanomic.com sirve el mismo TRMI que tasas.eltoque.com, pero exige el
 // header Origin del widget (iframe.cubanomic.com) y un token público que va
-// embebido en el bundle del widget. El valor de cada moneda es la MEDIANA de
-// las ofertas del día (la cifra que elToque publica como TRMI).
+// embebido en el bundle del widget. El valor de cada moneda es el que publica
+// el propio widget (mediana/EMA, ver readCubanomicStat) para que la app y la
+// web muestren la misma cifra.
 
 export interface CubanomicXRates {
   date: string;
@@ -194,16 +195,33 @@ export function isCubanomicXRates(x: unknown): x is CubanomicXRates {
 const CUBANOMIC_ZELLE_RAW_KEY = 'USD_Zelle.CUP';
 
 /**
- * Valor de una estadística de cubanomic: la mediana (avg de respaldo).
- * `allowEmpty`: una ventana sin mensajes (count_messages 0) devuelve la
- * mediana arrastrada de días previos; solo se acepta para la ventana de hoy
- * (tasa vigente), nunca para rellenar días históricos.
+ * Ofertas mínimas para que elToque publique la mediana de una serie; por debajo
+ * publica la EMA (media exponencial, con más peso a lo reciente). Es el umbral
+ * que aplica el widget antes de pintar la cifra, así que replicarlo mantiene
+ * app y web con el mismo valor (un CAM no era el caso: series flacas como MLC,
+ * CAD o Clásica se publican por EMA y no por mediana).
+ */
+const CUBANOMIC_MIN_COUNT_VALUES = 50;
+
+/**
+ * Valor publicado por elToque para una estadística: la MEDIANA si la serie
+ * tiene ofertas suficientes (count_values >= umbral) y la EMA si es flaca. Si
+ * por lo que sea faltara la EMA se cae a la mediana, y a la media como último
+ * recurso: más vale una cifra razonable que perder la tarjeta.
+ * `allowEmpty`: una ventana sin mensajes (count_messages 0) devuelve el valor
+ * arrastrado de días previos; solo se acepta para la ventana de hoy (tasa
+ * vigente), nunca para rellenar días históricos.
  */
 function readCubanomicStat(stat: unknown, allowEmpty: boolean): number | null {
   if (!stat || typeof stat !== 'object') return null;
   const st = stat as Record<string, unknown>;
   if (!allowEmpty && !(isFiniteNumber(st.count_messages) && st.count_messages > 0)) return null;
-  if (isFiniteNumber(st.median) && st.median > 0) return st.median;
+  const median = isFiniteNumber(st.median) && st.median > 0 ? st.median : null;
+  const ema = isFiniteNumber(st.ema_value) && st.ema_value > 0 ? st.ema_value : null;
+  const enoughOffers = isFiniteNumber(st.count_values) && st.count_values >= CUBANOMIC_MIN_COUNT_VALUES;
+  if (median !== null && enoughOffers) return median;
+  if (ema !== null) return ema;
+  if (median !== null) return median;
   if (isFiniteNumber(st.avg) && st.avg > 0) return st.avg;
   return null;
 }
@@ -212,7 +230,7 @@ function makeRate(code: ElToqueCode, value: number, day: string, fetchedAt: stri
   return { code, name: ELTOQUE_NAMES[code], value, source: 'ELTOQUE', date: day, fetchedAt };
 }
 
-/** statistics -> ElToqueRate[] (mediana; ver readCubanomicStat). */
+/** statistics -> ElToqueRate[] (mediana/EMA según actividad; ver readCubanomicStat). */
 export function mapCubanomicToRates(
   raw: CubanomicXRates,
   day: string,
@@ -234,7 +252,7 @@ export function mapCubanomicToRates(
  * Serie del dólar pagado por Zelle. Es un canal de pago, no una moneda del
  * TRMI: cubanomic la sirve en un endpoint aparte (x-rates-filter-by-pm con
  * `payment_method=Zelle&x_cur=CUP`) bajo la única clave `USD_Zelle.CUP`.
- * Misma mediana y mismo gate de actividad que el resto de series.
+ * Mismo valor publicado (mediana/EMA) y mismo gate de actividad que el resto.
  */
 export function mapCubanomicZelleToRate(
   raw: CubanomicXRates,

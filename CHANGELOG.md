@@ -13,8 +13,10 @@ y este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
   **widget público de elToque** (cubanomic), por lo que la app ya no necesita
   API key ni VPN para mostrarla. Cadena de fuentes en `services/rates/eltoque-client.ts`:
   `proxy (opcional) → cubanomic (widget) → trmi directo`. El valor publicado es
-  la mediana diaria de la ventana 07:00→07:00 (se exige actividad en la ventana
-  salvo para la tasa vigente del día).
+  el que muestra el propio widget: la **mediana** de la ventana 07:00→07:00
+  cuando la serie tiene ofertas suficientes (`count_values ≥ 50`) y la **EMA**
+  cuando es flaca, de modo que la app coincide con la cifra de la web. Se exige
+  actividad en la ventana salvo para la tasa vigente del día.
 - Nuevas monedas informales de cubanomic: **CAD** (dólar canadiense), **CLA**
   (Clásica) y el **dólar vía Zelle** (`ZELLE`). Zelle se pide a un endpoint
   aparte (`/api/v2/x-rates-filter-by-pm?payment_method=Zelle&x_cur=CUP`) y solo

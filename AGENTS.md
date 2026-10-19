@@ -40,8 +40,10 @@
 
 - Cliente: `services/rates/eltoque-client.ts` (dominio separado, nunca se mezcla
   con el BCC para cálculo/conversión). Cadena de fuentes: proxy (opcional) →
-  `api.cubanomic.com` (widget público de elToque; sin key ni VPN, usa la mediana
-  de la ventana 07:00→07:00) → `tasas.eltoque.com/v1/trmi` directo.
+  `api.cubanomic.com` (widget público de elToque; sin key ni VPN; ventana
+  07:00→07:00 con el valor que publica el widget: **mediana** si la serie tiene
+  `count_values ≥ 50` ofertas, **EMA** si es flaca) → `tasas.eltoque.com/v1/trmi`
+  directo.
 - Series mapeadas (lista blanca en `services/rates/types.ts`): USD, MLC, EUR,
   CAD (dólar canadiense), CLA (Clásica), BTC, TRX, USDT_TRC20 y el dólar vía
   **Zelle**, que cubanomic sirve en un endpoint aparte

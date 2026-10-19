@@ -1,6 +1,7 @@
 // Verifica la fuente cubanomic (widget público de elToque): ventana diaria
-// 07:00→07:00, mediana como valor, header Origin obligatorio, sin key ni VPN,
-// las series extra (CAD, Clásica y el dólar vía Zelle) y el fallback al trmi
+// 07:00→07:00, valor publicado por el widget (mediana con ofertas suficientes,
+// EMA si la serie es flaca), header Origin obligatorio, sin key ni VPN, las
+// series extra (CAD, Clásica y el dólar vía Zelle) y el fallback al trmi
 // directo con la key opcional.
 
 jest.mock('@react-native-async-storage/async-storage', () => {
@@ -31,19 +32,33 @@ import {
 const dayISO = (back: number) =>
   new Date(Date.now() - back * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+/**
+ * Estadística de cubanomic. `count` manda en la regla publicada: con
+ * count_values >= 50 elToque publica la mediana; por debajo, la EMA.
+ * `ema` es opcional y por defecto igual a la mediana, para que los casos que no
+ * prueban la regla queden neutros (la API real siempre trae `ema_value`).
+ */
+const stat = (median: number, avg: number, count: number, ema?: number) => ({
+  median,
+  avg,
+  ema_value: ema ?? median,
+  count_messages: count,
+  count_values: count,
+});
+
 const stats = (usd: number, count: number) => ({
-  USD: { median: usd, avg: usd - 5, count_messages: count, count_values: count },
-  MLC: { median: 500, avg: 505, count_messages: count, count_values: count },
-  ECU: { median: 800, avg: 810, count_messages: count, count_values: count },
-  BTC: { median: 700, avg: 700, count_messages: count, count_values: count },
-  TRX: { median: 250, avg: 250, count_messages: count, count_values: count },
-  USDT_TRC20: { median: 900, avg: 900, count_messages: count, count_values: count },
+  USD: stat(usd, usd - 5, count),
+  MLC: stat(500, 505, count),
+  ECU: stat(800, 810, count),
+  BTC: stat(700, 700, count),
+  TRX: stat(250, 250, count),
+  USDT_TRC20: stat(900, 900, count),
 });
 
 /** Series que solo publica cubanomic (no vienen en el trmi directo). */
 const extraStats = (count: number) => ({
-  CAD: { median: 500, avg: 500, count_messages: count, count_values: count },
-  CLA: { median: 760, avg: 755, count_messages: count, count_values: count },
+  CAD: stat(500, 500, count),
+  CLA: stat(760, 755, count),
 });
 
 /** Respuesta real de cubanomic: `date` es SIEMPRE hoy, no el día pedido. */
@@ -62,7 +77,7 @@ const zellePayload = (median: number, count: number) => ({
   minutes: 0,
   seconds: 0,
   statistics: {
-    'USD_Zelle.CUP': { median, avg: median - 2, count_messages: count, count_values: count },
+    'USD_Zelle.CUP': stat(median, median - 2, count),
   },
 });
 
@@ -142,7 +157,7 @@ const directRequest = (requests: Request[]) =>
   requests.find((r) => r.url.includes('tasas.eltoque.com'));
 
 describe('mapCubanomicToRates', () => {
-  test('usa la mediana como valor, normaliza ECU a EUR y fecha el día pedido', () => {
+  test('normaliza ECU a EUR, fecha el día pedido y mapea el TRMI del widget', () => {
     const rates = mapCubanomicToRates(cuboPayload(785) as never, '2026-10-17', 'x');
     expect(rates).toHaveLength(6);
     expect(usdValue(rates)).toBe(785);
@@ -172,9 +187,11 @@ describe('mapCubanomicToRates', () => {
     expect(rates.find((r) => r.code === 'CAD')?.value).toBe(500);
   });
 
-  test('cae a la media si falta la mediana', () => {
+  test('cae a la media si faltan la mediana y la EMA', () => {
     const raw = cuboPayload(785);
-    (raw.statistics.USD as { median: number | null }).median = null;
+    const usd = raw.statistics.USD as { median: number | null; ema_value: number | null };
+    usd.median = null;
+    usd.ema_value = null;
     const rates = mapCubanomicToRates(raw as never, '2026-10-17', 'x');
     expect(usdValue(rates)).toBe(780);
   });
@@ -193,6 +210,62 @@ describe('mapCubanomicToRates', () => {
     // El guard de elToque no acepta la forma de cubanomic ni viceversa.
     expect(isCubanomicXRates(trmiPayload(780) as never)).toBe(false);
     expect(mapCubanomicToRates(null as never, 'x', 'y')).toEqual([]);
+  });
+});
+
+// La web del widget (iframe.cubanomic.com) publica la mediana cuando la serie
+// tiene ofertas suficientes y la EMA cuando es flaca. La app debe mostrar la
+// misma cifra: mismos números que la tabla de la web en ambos casos.
+describe('regla de valor publicado (mediana vs EMA)', () => {
+  const oneStat = (usd: Record<string, unknown>) => ({
+    date: dayISO(0),
+    hour: 10,
+    minutes: 0,
+    seconds: 0,
+    statistics: { USD: usd },
+  });
+  const value = (usd: Record<string, unknown>) =>
+    usdValue(mapCubanomicToRates(oneStat(usd) as never, dayISO(0), 'x'));
+
+  test('serie con ofertas suficientes (>= 50) publica la mediana, no la EMA', () => {
+    expect(value({ median: 815, avg: 814.15, ema_value: 803.34, count_messages: 325, count_values: 333 })).toBe(815);
+  });
+
+  test('justo en el umbral (50 ofertas) sigue siendo mediana', () => {
+    expect(value({ median: 810, avg: 811.61, ema_value: 799.46, count_messages: 50, count_values: 50 })).toBe(810);
+  });
+
+  test('serie flaca (< 50 ofertas) publica la EMA, no la mediana', () => {
+    // MLC real: 13 ofertas. La web muestra 569.83 (EMA), no 565 (mediana).
+    expect(value({ median: 565, avg: 565, ema_value: 569.83, count_messages: 13, count_values: 13 })).toBe(569.83);
+  });
+
+  test('serie flaca sin EMA cae a la mediana (no se pierde la tarjeta)', () => {
+    expect(value({ median: 535, avg: 548.57, count_messages: 7, count_values: 7 })).toBe(535);
+  });
+
+  test('sin count_values se trata como flaca (EMA), igual que el widget', () => {
+    // El widget compara `count_values >= 50`: un campo ausente no la cumple.
+    expect(value({ median: 500, avg: 500, ema_value: 517.48, count_messages: 1 })).toBe(517.48);
+  });
+
+  test('la misma regla aplica al dólar vía Zelle', () => {
+    const raw = {
+      date: dayISO(0),
+      hour: 10,
+      minutes: 0,
+      seconds: 0,
+      statistics: {
+        'USD_Zelle.CUP': {
+          median: 795,
+          avg: 793,
+          ema_value: 805,
+          count_messages: 4,
+          count_values: 9,
+        },
+      },
+    };
+    expect(mapCubanomicZelleToRate(raw as never, dayISO(0), 'x')?.value).toBe(805);
   });
 });
 
