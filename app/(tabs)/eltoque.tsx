@@ -6,6 +6,10 @@ import { ElToqueRateCard } from "@/components/rates/ElToqueRateCard";
 import { SourceSegmentedControl } from "@/components/rates/SourceSegmentedControl";
 import { VpnHint } from "@/components/rates/VpnHint";
 import { EmptyState, ErrorState } from "@/components/ui/loading-error";
+import {
+  SegmentedControl,
+  type SegmentedOption,
+} from "@/components/ui/segmented-control";
 import { RateListSkeleton } from "@/components/ui/skeleton";
 import {
   BorderRadius,
@@ -32,9 +36,17 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Mode = "ELTOQUE" | "COMPARAR";
+/** Ventana de la tasa informal: la publicada (07:00→07:00) o el valor vivo. */
+type RateWindow = "published" | "realtime";
+
+const WINDOW_OPTIONS: SegmentedOption<RateWindow>[] = [
+  { key: "published", label: "Publicada" },
+  { key: "realtime", label: "Tiempo real" },
+];
 
 export default function ElToqueScreen() {
   const [mode, setMode] = useState<Mode>("ELTOQUE");
+  const [rateWindow, setRateWindow] = useState<RateWindow>("published");
   const [daily, setDaily] = useState<ElToqueDaily | null>(null);
   const [rows, setRows] = useState<CompareRow[]>([]);
   const [compareStaleDate, setCompareStaleDate] = useState<string | null>(null);
@@ -55,10 +67,11 @@ export default function ElToqueScreen() {
         setError("");
         setBlocked(false);
         if (mode === "ELTOQUE") {
-          const res = await ratesRepository.getElToqueDaily(
-            undefined,
-            force ? { forceRefresh: true } : undefined,
-          );
+          const opts = force ? { forceRefresh: true } : undefined;
+          const res =
+            rateWindow === "realtime"
+              ? await ratesRepository.getElToqueRealtime(opts)
+              : await ratesRepository.getElToqueDaily(undefined, opts);
           if (res.ok && res.data) setDaily(res.data);
           else {
             setError(res.error ?? "No se pudo cargar la tasa informal.");
@@ -80,7 +93,7 @@ export default function ElToqueScreen() {
         setRefreshing(false);
       }
     },
-    [mode],
+    [mode, rateWindow],
   );
 
   useEffect(() => {
@@ -94,6 +107,16 @@ export default function ElToqueScreen() {
     setRefreshing(true);
     void load(true);
   }, [load]);
+
+  // Al cambiar de ventana se descarta lo cargado: no debe quedar en pantalla el
+  // valor publicado mientras se pide el de tiempo real (ni al revés).
+  const onWindowChange = useCallback((next: RateWindow) => {
+    setDaily(null);
+    setError("");
+    setBlocked(false);
+    setLoading(true);
+    setRateWindow(next);
+  }, []);
 
   // Resumen clonado del tab BCC: USD / EUR (euro) / conteo, todo informal.
   const stats = useMemo(() => {
@@ -141,7 +164,9 @@ export default function ElToqueScreen() {
             style={[styles.subtitle, { color: colors.textMuted }]}
             numberOfLines={2}
           >
-            Referencia · {daily?.date ?? "hoy"}
+            {mode === "ELTOQUE" && rateWindow === "realtime"
+              ? `Tiempo real · ${daily?.date ?? "hoy"}`
+              : `Referencia · ${daily?.date ?? "hoy"}`}
           </Text>
 
           <View
@@ -203,6 +228,17 @@ export default function ElToqueScreen() {
           />
         </View>
 
+        {mode === "ELTOQUE" ? (
+          <View style={styles.switchSection}>
+            <SegmentedControl
+              value={rateWindow}
+              onChange={onWindowChange}
+              options={WINDOW_OPTIONS}
+              accessibilityLabel="Ventana de la tasa informal: publicada o tiempo real"
+            />
+          </View>
+        ) : null}
+
         {loading ? (
           <View style={{ paddingHorizontal: Spacing.lg }}>
             <RateListSkeleton rows={mode === "ELTOQUE" ? 5 : 3} />
@@ -235,6 +271,27 @@ export default function ElToqueScreen() {
                   >
                     Datos guardados del {daily.date}. Active un VPN y reintente
                     para actualizar.
+                  </Text>
+                </View>
+              ) : null}
+              {daily.realtime ? (
+                <View
+                  style={[
+                    styles.note,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.cardBorder,
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name="pulse-outline"
+                    size={18}
+                    color={colors.primary}
+                  />
+                  <Text style={[styles.noteText, { color: colors.textMuted }]}>
+                    Valor vivo del widget: se mueve durante el día y no es la tasa
+                    publicada de las 07:00.
                   </Text>
                 </View>
               ) : null}

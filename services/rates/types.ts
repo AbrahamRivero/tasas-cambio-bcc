@@ -86,6 +86,11 @@ export interface ElToqueDaily {
   fetchedAt: string;
   /** True si viene de almacenamiento local por falta de red (fecha visible en UI). */
   stale?: boolean;
+  /**
+   * True si es la vista "tiempo real" del widget (sin ventana 07:00→07:00):
+   * un valor vivo que se mueve durante el día y no se persiste como el publicado.
+   */
+  realtime?: boolean;
 }
 
 // Solo códigos que existen en ambas fuentes pueden compararse lado-a-lado.

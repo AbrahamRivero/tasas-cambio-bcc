@@ -5,8 +5,11 @@
 // cubanomic publica además series que el TRMI directo no trae (CAD, Clásica,
 // dólar vía Zelle): se mapean solo las monedas de la lista blanca de types.ts.
 // El hop de proxy y el trmi directo sirven el juego del TRMI (sin CAD/CLA/Zelle).
+// Además del día publicado (getDaily, ventana 07:00→07:00) existe la vista
+// "tiempo real" (getRealtime, sin fechas), la tarjeta viva del widget; esa solo
+// la sirve cubanomic y no se persiste.
 
-import { TtlCache, TTL_ELTOQUE_MS } from './cache';
+import { TtlCache, TTL_ELTOQUE_MS, TTL_ELTOQUE_REALTIME_MS } from './cache';
 import { storageGet, storageSet } from './storage';
 import {
   isCubanomicXRates,
@@ -21,6 +24,8 @@ import {
 const STORAGE_KEY = 'eltoque:daily:latest';
 const HISTORY_KEY = 'eltoque:daily:history';
 const HISTORY_CAP = 30;
+/** Clave de caché de la vista "tiempo real" (no se persiste como el publicado). */
+const REALTIME_CACHE_KEY = 'realtime';
 
 async function loadPersisted(): Promise<ElToqueDaily | null> {
   try {
@@ -87,7 +92,7 @@ const CUBANOMIC_HEADERS = {
 };
 const CUBANOMIC_TIMEOUT_MS = 10 * 1000;
 // El extra de Zelle es opcional y no debe retrasar las series principales:
-// va secuencial y con un timeout corto (ver fetchViaCubanomic).
+// va secuencial y con un timeout corto (ver fetchCubanomicSnapshot).
 const CUBANOMIC_ZELLE_TIMEOUT_MS = 2500;
 // La ventana diaria de elToque va de las 07:00 a las 07:00 del día siguiente.
 const CUBANOMIC_WINDOW_START = '07:00:00';
@@ -118,16 +123,17 @@ function isValidIsoDay(day: string): boolean {
 export type ElToqueNetKind = 'timeout' | 'network' | null;
 
 /**
- * Query común de cubanomic: ventana diaria 07:00→07:00 + token del widget.
- * (El widget en modo "tiempo real" omite las fechas y obtiene un valor
- * intradía; aquí se pide siempre la ventana publicada, igual que el TRMI.)
+ * Query común de cubanomic. Con `day` pide la ventana publicada 07:00→07:00;
+ * con `null` pide el **tiempo real** (sin fechas), la vista viva del widget
+ * (`?real_time=true`), que es un valor rodante y no está alineado a las 07:00.
  */
-function cubanomicWindowQuery(day: string): string {
+function cubanomicQuery(day: string | null): string {
+  const base = `msg=false&token=${encodeURIComponent(CUBANOMIC_TOKEN)}`;
+  if (!day) return base;
   return (
-    `msg=false` +
+    `${base}` +
     `&date_from=${encodeURIComponent(`${day} ${CUBANOMIC_WINDOW_START}`)}` +
-    `&date_to=${encodeURIComponent(`${nextIsoDay(day)} ${CUBANOMIC_WINDOW_START}`)}` +
-    `&token=${encodeURIComponent(CUBANOMIC_TOKEN)}`
+    `&date_to=${encodeURIComponent(`${nextIsoDay(day)} ${CUBANOMIC_WINDOW_START}`)}`
   );
 }
 
@@ -171,6 +177,8 @@ export type ElToqueResult =
 
 export class ElToqueClient {
   private cache = new TtlCache<ElToqueDaily>(TTL_ELTOQUE_MS);
+  /** Vista "tiempo real" del widget: valor vivo, TTL corto y sin histórico. */
+  private realtimeCache = new TtlCache<ElToqueDaily>(TTL_ELTOQUE_REALTIME_MS);
   private inflight = new Map<string, Promise<ElToqueDaily | null>>();
   private retryAfterUntil = 0;
   /** Enfriamiento propio del hop cubanomic (token compartido: no insistir). */
@@ -179,6 +187,31 @@ export class ElToqueClient {
   private cubanomicZelleBackoffUntil = 0;
   /** Fallos recientes por día (caché negativa 60s: evita quemar la cuota reintentando). */
   private failCache = new Map<string, { ts: number; error: string; status: number | null }>();
+
+  /**
+   * Andamiaje común de caché: valor vigente, fallo reciente (60s) o petición en
+   * vuelo. `null` significa que hay que ir a la red. `cache` permite usar la
+   * caché de vida corta de la vista "tiempo real" sin duplicar la lógica.
+   */
+  private async cachedOrInflight(
+    key: string,
+    cache: TtlCache<ElToqueDaily> = this.cache,
+  ): Promise<ElToqueResult | null> {
+    const hit = cache.get(key);
+    if (hit) return { ok: true, data: hit };
+    const fail = this.failCache.get(key);
+    if (fail && Date.now() - fail.ts < 60 * 1000) {
+      return { ok: false, data: null, error: fail.error, status: fail.status };
+    }
+    const ongoing = this.inflight.get(key);
+    if (ongoing) {
+      const data = await ongoing;
+      return data
+        ? { ok: true, data }
+        : { ok: false, data: null, error: 'No se pudo cargar la tasa informal.', status: null };
+    }
+    return null;
+  }
 
   async getDaily(date?: string, options?: ElToqueRequestOptions): Promise<ElToqueResult> {
     const day = date ?? todayIsoDate();
@@ -192,23 +225,12 @@ export class ElToqueClient {
     }
 
     const key = `daily:${day}`;
-    if (!options?.forceRefresh) {
-      const hit = this.cache.get(key);
-      if (hit) return { ok: true, data: hit };
-      const fail = this.failCache.get(key);
-      if (fail && Date.now() - fail.ts < 60 * 1000) {
-        return { ok: false, data: null, error: fail.error, status: fail.status };
-      }
-      const ongoing = this.inflight.get(key);
-      if (ongoing) {
-        const data = await ongoing;
-        return data
-          ? { ok: true, data }
-          : { ok: false, data: null, error: 'No se pudo cargar la tasa informal.', status: null };
-      }
-    } else {
+    if (options?.forceRefresh) {
       this.cache.clear(key);
       this.inflight.delete(key);
+    } else {
+      const cached = await this.cachedOrInflight(key);
+      if (cached) return cached;
     }
 
     const p = this.fetchDaily(day, options);
@@ -232,6 +254,42 @@ export class ElToqueClient {
         if (stale) return { ok: true, data: { ...stale, stale: true } };
       }
       return { ok: false, data: null, error: err, blocked, status };
+    } finally {
+      if (this.inflight.get(key) === p) this.inflight.delete(key);
+    }
+  }
+
+  /**
+   * Tiempo real: el valor vivo que pinta la tarjeta del widget (sin ventana,
+   * `?real_time=true`). Es lo que se ve en iframe.cubanomic.com cuando el
+   * interruptor "Tiempo Real" está activo. No se persiste ni entra en el
+   * histórico: el día cerrado es competencia de getDaily.
+   */
+  async getRealtime(options?: ElToqueRequestOptions): Promise<ElToqueResult> {
+    const key = REALTIME_CACHE_KEY;
+    if (options?.forceRefresh) {
+      this.realtimeCache.clear(key);
+      this.inflight.delete(key);
+    } else {
+      const cached = await this.cachedOrInflight(key, this.realtimeCache);
+      if (cached) return cached;
+    }
+
+    const p = this.fetchRealtime(options?.signal);
+    this.inflight.set(key, p);
+    try {
+      const data = await p;
+      if (data) {
+        this.realtimeCache.set(key, data);
+        this.failCache.delete(key);
+        return { ok: true, data };
+      }
+      const err = this.lastError ?? 'No se pudo cargar la tasa informal.';
+      const status = this.lastStatus ?? null;
+      this.failCache.set(key, { ts: Date.now(), error: err, status });
+      // Sin respaldo que servir en tiempo real: no hay stale (el guardado es
+      // siempre un día publicado, no una vista viva).
+      return { ok: false, data: null, error: err, blocked: this.lastNetKind !== null, status };
     } finally {
       if (this.inflight.get(key) === p) this.inflight.delete(key);
     }
@@ -344,7 +402,7 @@ export class ElToqueClient {
       this.lastStatus = 429;
       this.lastError = 'Límite de la fuente informal. Reintente en unos minutos.';
     } else {
-      const viaCubanomic = await this.fetchViaCubanomic(day, options?.signal);
+      const viaCubanomic = await this.fetchCubanomicSnapshot(day, options?.signal);
       if (viaCubanomic) return viaCubanomic;
     }
     const key = getApiKey(options?.apiKey);
@@ -355,15 +413,39 @@ export class ElToqueClient {
   }
 
   /**
+   * Vista "tiempo real" del widget (`?real_time=true`): sin fechas, un valor
+   * rodante que no se corta a las 07:00. Solo la sirve el widget: ni el proxy
+   * ni el trmi directo publican una vista viva, así que no hay respaldo.
+   */
+  private async fetchRealtime(signal?: AbortSignal): Promise<ElToqueDaily | null> {
+    this.lastError = undefined;
+    this.lastStatus = undefined;
+    this.lastNetKind = null;
+    if (Date.now() < this.cubanomicBackoffUntil) {
+      this.lastStatus = 429;
+      this.lastError = 'Límite de la fuente informal. Reintente en unos minutos.';
+      return null;
+    }
+    return this.fetchCubanomicSnapshot(null, signal);
+  }
+
+  /**
    * cubanomic (widget público de elToque): mismo TRMI, sin key ni VPN.
-   * Ventana `day 07:00:00` → `day+1 07:00:00` (fin de ventana = el día que
-   * elToque publica como TRMI). El valor de cada serie es el que publica el
-   * widget: mediana si hay ofertas suficientes, EMA si la serie es flaca.
-   * A la ventana vigente se le suma la serie del canal Zelle (ver
+   * `day` pide la ventana publicada `day 07:00:00` → `day+1 07:00:00` (fin de
+   * ventana = el día que elToque publica como TRMI); `null` pide el tiempo real
+   * (sin fechas), la tarjeta viva del widget. El valor de cada serie es el que
+   * publica el widget: mediana si hay ofertas suficientes, EMA si es flaca.
+   * A la vista vigente se le suma la serie del canal Zelle (ver
    * fetchCubanomicZelle).
    */
-  private async fetchViaCubanomic(day: string, signal?: AbortSignal): Promise<ElToqueDaily | null> {
-    const url = `${CUBANOMIC_HOST}?${cubanomicWindowQuery(day)}`;
+  private async fetchCubanomicSnapshot(
+    day: string | null,
+    signal?: AbortSignal,
+  ): Promise<ElToqueDaily | null> {
+    const realtime = day === null;
+    const label = day ?? 'tiempo real';
+    const logTag = realtime ? '[elToque/cubanomic/realtime]' : '[elToque/cubanomic]';
+    const url = `${CUBANOMIC_HOST}?${cubanomicQuery(day)}`;
     let res: Response | null = null;
     try {
       res = await this.fetchWithTimeout(
@@ -379,14 +461,14 @@ export class ElToqueClient {
           ? `La fuente informal (widget) no responde (${CUBANOMIC_TIMEOUT_MS / 1000}s).`
           : 'Sin ruta a api.cubanomic.com. Pruebe datos móviles, otro wifi o VPN.';
       if (typeof __DEV__ !== 'undefined' && __DEV__ && !process.env.JEST_WORKER_ID) {
-        console.log(`[elToque/cubanomic] ${day} -> ${this.lastNetKind}: ${(e as Error)?.message ?? e}`);
+        console.log(`${logTag} ${label} -> ${this.lastNetKind}: ${(e as Error)?.message ?? e}`);
       }
       return null;
     }
     if (!res) return null;
     this.lastStatus = res.status;
     if (typeof __DEV__ !== 'undefined' && __DEV__ && !process.env.JEST_WORKER_ID) {
-      console.log(`[elToque/cubanomic] ${day} -> HTTP ${res.status}`);
+      console.log(`${logTag} ${label} -> HTTP ${res.status}`);
     }
     if (res.status === 429) {
       // Límite del widget (token compartido), ajeno a nuestra key: NO activa el
@@ -420,46 +502,46 @@ export class ElToqueClient {
       return null;
     }
     const fetchedAt = new Date().toISOString();
-    const isCurrentWindow = day === todayIsoDate();
-    const rates = mapCubanomicToRates(
-      json,
-      day,
-      fetchedAt,
-      // Solo la ventana vigente (hoy) puede venir sin mensajes: cubanomic
-      // devuelve entonces el valor arrastrado de días previos.
-      isCurrentWindow,
-    );
+    // Vista viva (tiempo real) o ventana del día en curso: el widget pinta un
+    // valor aunque no haya mensajes, porque cubanomic devuelve el arrastrado de
+    // días previos. Nunca se acepta para el relleno de días históricos.
+    const isLive = realtime || day === todayIsoDate();
+    const rateDay = day ?? todayIsoDate();
+    const rates = mapCubanomicToRates(json, rateDay, fetchedAt, isLive);
     if (rates.length === 0) {
       this.lastError = 'Sin tasas informales para esa fecha.';
       return null;
     }
-    // La serie del dólar vía Zelle solo se pide para la ventana vigente: es una
-    // vista del mercado de hoy y pedirla también para el relleno histórico
-    // duplicaría el coste (cuota limitada) sin que el histórico la muestre.
+    // La serie del dólar vía Zelle solo se pide para la vista viva: en el
+    // relleno histórico duplicaría el coste (cuota limitada) sin mostrarse.
     // Va secuencial a propósito: `fetchWithTimeout` comparte `timedOutFlag` en la
     // instancia, así que dos peticiones concurrentes se pisarían ese diagnóstico.
-    if (isCurrentWindow) {
-      const zelle = await this.fetchCubanomicZelle(day, isCurrentWindow, signal);
-      if (zelle) return { date: day, rates: [...rates, zelle], fetchedAt };
-    }
-    return { date: day, rates, fetchedAt };
+    const zelle = isLive ? await this.fetchCubanomicZelle(day, signal) : null;
+    const done: ElToqueDaily = {
+      date: rateDay,
+      rates: zelle ? [...rates, zelle] : rates,
+      fetchedAt,
+      ...(realtime ? { realtime: true } : {}),
+    };
+    return done;
   }
 
   /**
    * Serie del dólar pagado por Zelle (`x-rates-filter-by-pm`, solo v2).
-   * Es un extra best-effort: si falla se omite la tarjeta de Zelle sin tocar el
+   * El widget la pide SIEMPRE sin fechas (es un canal de pago con su propia
+   * vista viva), así que `day` null = tiempo real y `day` = ventana del día.
+   * Es un extra best-effort: si falla se omite la tarjeta sin tocar el
    * diagnóstico ni el enfriamiento del hop principal (que ya respondió bien en
    * esta misma pasada). Un timeout más corto evita retrasar las series que sí
    * llegaron por el hop principal.
    */
   private async fetchCubanomicZelle(
-    day: string,
-    isCurrentWindow: boolean,
+    day: string | null,
     signal?: AbortSignal,
   ): Promise<ElToqueRate | null> {
     if (Date.now() < this.cubanomicZelleBackoffUntil) return null;
     const url =
-      `${CUBANOMIC_ZELLE_HOST}?${cubanomicWindowQuery(day)}` +
+      `${CUBANOMIC_ZELLE_HOST}?${cubanomicQuery(day)}` +
       `&payment_method=${encodeURIComponent(CUBANOMIC_ZELLE_PAYMENT_METHOD)}` +
       `&x_cur=${encodeURIComponent(CUBANOMIC_ZELLE_X_CUR)}`;
     try {
@@ -471,7 +553,7 @@ export class ElToqueClient {
       );
       if (!res) return null;
       if (typeof __DEV__ !== 'undefined' && __DEV__ && !process.env.JEST_WORKER_ID) {
-        console.log(`[elToque/cubanomic/zelle] ${day} -> HTTP ${res.status}`);
+        console.log(`[elToque/cubanomic/zelle] ${day ?? 'tiempo real'} -> HTTP ${res.status}`);
       }
       if (!res.ok) {
         // 429 o 5xx de este extra: enfriarlo sin tocar el hop principal.
@@ -481,10 +563,12 @@ export class ElToqueClient {
       const json: unknown = await res.json();
       // La serie de Zelle es un bloque `statistics` con una única clave.
       if (!isCubanomicXRates(json)) return null;
-      return mapCubanomicZelleToRate(json, day, new Date().toISOString(), isCurrentWindow);
+      // Sin mensajes cubanomic devuelve el valor arrastrado, igual que el widget
+      // pinta su tarjeta: la Zelle solo se pide para la vista viva (ver arriba).
+      return mapCubanomicZelleToRate(json, day ?? todayIsoDate(), new Date().toISOString(), true);
     } catch (e) {
       if (typeof __DEV__ !== 'undefined' && __DEV__ && !process.env.JEST_WORKER_ID) {
-        console.log(`[elToque/cubanomic/zelle] ${day} -> error: ${(e as Error)?.message ?? e}`);
+        console.log(`[elToque/cubanomic/zelle] ${day ?? 'tiempo real'} -> error: ${(e as Error)?.message ?? e}`);
       }
       // Fallo de red/timeout de un extra opcional: no repetirlo en cada refresh.
       this.applyCubanomicZelleBackoff(null);
@@ -659,6 +743,7 @@ export class ElToqueClient {
 
   clearCache(): void {
     this.cache.clear();
+    this.realtimeCache.clear();
     this.inflight.clear();
     this.retryAfterUntil = 0;
     this.cubanomicBackoffUntil = 0;

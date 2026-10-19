@@ -1,8 +1,8 @@
 // Verifica la fuente cubanomic (widget público de elToque): ventana diaria
 // 07:00→07:00, valor publicado por el widget (mediana con ofertas suficientes,
 // EMA si la serie es flaca), header Origin obligatorio, sin key ni VPN, las
-// series extra (CAD, Clásica y el dólar vía Zelle) y el fallback al trmi
-// directo con la key opcional.
+// series extra (CAD, Clásica y el dólar vía Zelle), la vista "tiempo real" y el
+// fallback al trmi directo con la key opcional.
 
 jest.mock('@react-native-async-storage/async-storage', () => {
   const store = new Map<string, string>();
@@ -71,13 +71,13 @@ const cuboPayload = (usd: number, count = 10) => ({
 });
 
 /** Serie del dólar pagado por Zelle: clave única `USD_Zelle.CUP`. */
-const zellePayload = (median: number, count: number) => ({
+const zellePayload = (median: number, count: number, ema?: number) => ({
   date: dayISO(0),
   hour: 10,
   minutes: 0,
   seconds: 0,
   statistics: {
-    'USD_Zelle.CUP': stat(median, median - 2, count),
+    'USD_Zelle.CUP': stat(median, median - 2, count, ema),
   },
 });
 
@@ -466,4 +466,93 @@ describe('ElToqueClient vía cubanomic', () => {
     expect(res.blocked).toBe(false);
     expect(res.status).toBe(401);
   }, 30000);
+});
+
+// La tarjeta "Tiempo Real" del widget pide la API sin fechas (valor vivo) y su
+// Zelle también va sin fechas. Verificado contra iframe.cubanomic.com.
+describe('ElToqueClient tiempo real', () => {
+  test('pide la vista viva sin fechas y añade la Zelle sin fechas', async () => {
+    const requests = installFetch({
+      cubanomic: () => ({ status: 200, body: cuboPayload(815) }),
+      zelle: () => ({ status: 200, body: zellePayload(805, 9, 779.08) }),
+    });
+    const client = freshClient(false);
+    const res = await client.getRealtime();
+    expect(res.ok).toBe(true);
+    expect(res.data?.realtime).toBe(true);
+    expect(usdValue(res.data!.rates)).toBe(815);
+    const req = cuboRequest(requests)!;
+    expect(req.url).toContain('msg=false');
+    expect(req.url).not.toContain('date_from');
+    expect(req.url).not.toContain('date_to');
+    expect(req.url).toMatch(/[?&]token=[A-Za-z0-9_-]+/);
+    expect(req.headers.Origin).toBe('https://iframe.cubanomic.com');
+    // El widget pide la Zelle siempre sin fechas, también en tiempo real.
+    const z = zelleRequest(requests)!;
+    expect(z.url).not.toContain('date_from');
+    expect(z.url).toContain('payment_method=Zelle');
+    expect(z.headers.Origin).toBe('https://iframe.cubanomic.com');
+    // La Zelle flaca (9 ofertas) publica su EMA, no la mediana.
+    const zelle = res.data!.rates.find((r: ElToqueRate) => r.code === 'ZELLE');
+    expect(zelle?.value).toBe(779.08);
+  });
+
+  test('aplica la regla mediana/EMA igual que el widget', async () => {
+    const body = {
+      date: dayISO(0),
+      hour: 10,
+      minutes: 0,
+      seconds: 0,
+      statistics: {
+        USD: stat(815, 814.15, 333), // gruesa -> mediana
+        MLC: stat(550, 550, 12, 563.53), // flaca -> EMA
+      },
+    };
+    installFetch({
+      cubanomic: () => ({ status: 200, body }),
+      zelle: () => ({ status: 500, body: {} }),
+    });
+    const client = freshClient(false);
+    const res = await client.getRealtime();
+    expect(res.ok).toBe(true);
+    expect(usdValue(res.data!.rates)).toBe(815);
+    expect(res.data!.rates.find((r: ElToqueRate) => r.code === 'MLC')?.value).toBe(563.53);
+  });
+
+  test('la vista viva no se persiste (el histórico es de días publicados)', async () => {
+    installFetch({
+      cubanomic: () => ({ status: 200, body: cuboPayload(815) }),
+      zelle: () => ({ status: 200, body: zellePayload(805, 9) }),
+    });
+    jest.resetModules();
+    setKey(false);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod = require('../eltoque-client');
+    const client = new mod.ElToqueClient();
+    expect((await client.getRealtime()).ok).toBe(true);
+    expect(await mod.loadElToqueLocalHistory()).toEqual([]);
+  });
+
+  test('cachea la vista viva y forceRefresh la vuelve a pedir', async () => {
+    const requests = installFetch({
+      cubanomic: () => ({ status: 200, body: cuboPayload(815) }),
+      zelle: () => ({ status: 200, body: zellePayload(805, 9) }),
+    });
+    const client = freshClient(false);
+    await client.getRealtime();
+    await client.getRealtime();
+    // Una sola pasada: principal + Zelle (la 2ª llamada sale de caché).
+    expect(requests.filter((r) => r.url.includes('api.cubanomic.com'))).toHaveLength(2);
+    await client.getRealtime({ forceRefresh: true });
+    expect(requests.filter((r) => r.url.includes('api.cubanomic.com'))).toHaveLength(4);
+  });
+
+  test('sin red queda bloqueada y sin datos guardados que servir', async () => {
+    installFetch({ cubanomic: () => ({ reject: true }) });
+    const client = freshClient(false);
+    const res = await client.getRealtime();
+    expect(res.ok).toBe(false);
+    expect(res.blocked).toBe(true);
+    expect(res.status).toBeNull();
+  });
 });

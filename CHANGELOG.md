@@ -22,6 +22,11 @@ y este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
   aparte (`/api/v2/x-rates-filter-by-pm?payment_method=Zelle&x_cur=CUP`) y solo
   para la ventana vigente, de forma que un fallo suyo no afecta a la tasa
   principal.
+- Vista **Tiempo real** de la tasa informal (`getRealtime`), seleccionable en la
+  pantalla elToque junto a la publicada: es la tarjeta viva del widget
+  (`?real_time=true`, petición sin fechas, sin corte a las 07:00). Solo la sirve
+  cubanomic, no se persiste ni entra en el histórico, y su serie de Zelle va
+  también sin fechas, igual que en el widget.
 
 ### Cambiado
 

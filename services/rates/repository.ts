@@ -44,6 +44,8 @@ export const ratesRepository = {
   getBccActive,
   getElToqueDaily: (date?: string, opts?: { forceRefresh?: boolean; proxyUrl?: string }) =>
     date ? elToqueClient.getDaily(date, opts) : elToqueClient.getLatestDaily(opts),
+  /** Vista "tiempo real" del widget (valor vivo, sin ventana 07:00→07:00). */
+  getElToqueRealtime: (opts?: { forceRefresh?: boolean }) => elToqueClient.getRealtime(opts),
   getCompareRows,
   getElToqueDiagnostics: () => elToqueClient.getDiagnostics(),
   getElToqueLocalHistory: () => loadElToqueLocalHistory(),

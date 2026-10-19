@@ -3,6 +3,9 @@
 
 export const TTL_BCC_MS = 24 * 60 * 60 * 1000;
 export const TTL_ELTOQUE_MS = 60 * 60 * 1000;
+// La vista "tiempo real" del widget es un valor vivo: se refresca más seguido
+// que el publicado (que ya está cerrado hasta la próxima ventana de las 07:00).
+export const TTL_ELTOQUE_REALTIME_MS = 5 * 60 * 1000;
 
 interface Entry<T> {
   ts: number;
