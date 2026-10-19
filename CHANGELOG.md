@@ -7,8 +7,20 @@ y este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
 ## [No publicado]
 
+### Agregado
+
+- La tasa informal (mercado de calle, TRMI de elToque) se obtiene ahora del
+  **widget público de elToque** (cubanomic), por lo que la app ya no necesita
+  API key ni VPN para mostrarla. Cadena de fuentes en `services/rates/eltoque-client.ts`:
+  `proxy (opcional) → cubanomic (widget) → trmi directo`. El valor publicado es
+  la mediana diaria de la ventana 07:00→07:00 (se exige actividad en la ventana
+  salvo para la tasa vigente del día).
+
 ### Cambiado
 
+- `EXPO_PUBLIC_ELTOQUE_API_KEY` pasa a ser **opcional**: sin ella la app toma la
+  tasa informal del widget público y la key solo habilita el respaldo directo
+  contra `tasas.eltoque.com`.
 - Tamaño del APK reducido de ~110 MB a ~47 MB: se compilan solo dos arquitecturas
   (`armeabi-v7a` y `arm64-v8a`), se activa R8/minify y el encogido de recursos en
   release mediante `expo-build-properties` (`app.json`).

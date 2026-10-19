@@ -47,6 +47,13 @@ describe('mapElToqueToRates', () => {
   test('returns [] on malformed payload (fail-closed)', () => {
     expect(mapElToqueToRates(null as never, 'x')).toEqual([]);
   });
+  test('la fecha pedida manda sobre el `date` que devuelve el servidor', () => {
+    // La API responde siempre date:hoy; la serie histórica depende de esto.
+    const rates = mapElToqueToRates(raw as never, 'x', '2026-10-01');
+    expect(rates.every((r) => r.date === '2026-10-01')).toBe(true);
+    // Sin día explícito se conserva el de la respuesta (compat).
+    expect(mapElToqueToRates(raw as never, 'x')[0].date).toBe('2026-10-11');
+  });
 });
 
 describe('buildCompareRows', () => {

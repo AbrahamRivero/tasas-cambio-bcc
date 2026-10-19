@@ -112,7 +112,16 @@ const ELTOQUE_NAMES: Record<ElToqueCode, string> = {
   USDT_TRC20: 'Tether',
 };
 
-export function mapElToqueToRates(raw: ElToqueRawResponse, fetchedAt: string): ElToqueRate[] {
+/**
+ * tasas -> ElToqueRate[]. `day` es la fecha pedida: la API responde siempre
+ * `date: hoy`, así que la fecha válida es el día solicitado (si no, cada día
+ * sobrescribiría al anterior y la serie histórica quedaría en 1 fila).
+ */
+export function mapElToqueToRates(
+  raw: ElToqueRawResponse,
+  fetchedAt: string,
+  day?: string,
+): ElToqueRate[] {
   if (!isElToqueResponse(raw)) return [];
   const tasas = raw.tasas as Record<string, unknown>;
   if (!isValidElToqueTasas(tasas)) return [];
@@ -126,7 +135,70 @@ export function mapElToqueToRates(raw: ElToqueRawResponse, fetchedAt: string): E
       name: ELTOQUE_NAMES[code],
       value: v,
       source: 'ELTOQUE',
-      date: raw.date,
+      date: day ?? raw.date,
+      fetchedAt,
+    });
+  }
+  return out;
+}
+
+// --- cubanomic (fuente del widget de elToque) ---
+// api.cubanomic.com sirve el mismo TRMI que tasas.eltoque.com, pero exige el
+// header Origin del widget (iframe.cubanomic.com) y un token público que va
+// embebido en el bundle del widget. El valor de cada moneda es la MEDIANA de
+// las ofertas del día (la cifra que elToque publica como TRMI).
+
+export interface CubanomicXRates {
+  date: string;
+  hour: number;
+  minutes: number;
+  seconds: number;
+  statistics: Record<string, unknown>;
+}
+
+export function isCubanomicXRates(x: unknown): x is CubanomicXRates {
+  if (!x || typeof x !== 'object') return false;
+  const r = x as Record<string, unknown>;
+  if (typeof r.date !== 'string' || !DATE_RE.test(r.date)) return false;
+  if (!isFiniteNumber(r.hour) || !isFiniteNumber(r.minutes)) return false;
+  if (!r.statistics || typeof r.statistics !== 'object') return false;
+  return true;
+}
+
+/**
+ * statistics -> ElToqueRate[] usando la mediana (avg de respaldo).
+ * `allowEmpty`: una ventana sin mensajes (count_messages 0) devuelve la
+ * mediana arrastrada de días previos; solo se acepta para la ventana de hoy
+ * (tasa vigente), nunca para rellenar días históricos.
+ */
+export function mapCubanomicToRates(
+  raw: CubanomicXRates,
+  day: string,
+  fetchedAt: string,
+  allowEmpty = false,
+): ElToqueRate[] {
+  if (!isCubanomicXRates(raw)) return [];
+  const stats = raw.statistics as Record<string, unknown>;
+  const out: ElToqueRate[] = [];
+  for (const rawKey of ELTOQUE_RAW_KEYS) {
+    const s = stats[rawKey];
+    if (!s || typeof s !== 'object') continue;
+    const st = s as Record<string, unknown>;
+    if (!allowEmpty && !(isFiniteNumber(st.count_messages) && st.count_messages > 0)) continue;
+    const value =
+      isFiniteNumber(st.median) && st.median > 0
+        ? st.median
+        : isFiniteNumber(st.avg) && st.avg > 0
+          ? st.avg
+          : null;
+    if (value === null) continue;
+    const code = RAW_TO_CODE[rawKey];
+    out.push({
+      code,
+      name: ELTOQUE_NAMES[code],
+      value,
+      source: 'ELTOQUE',
+      date: day,
       fetchedAt,
     });
   }

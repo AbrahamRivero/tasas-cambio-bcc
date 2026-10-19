@@ -36,6 +36,15 @@
 - Endpoints: `/activas`, `/historico`
 - API includes fallback mock data generation in `getTasasHistorico()` if endpoint fails
 
+### Tasas informales (elToque)
+
+- Cliente: `services/rates/eltoque-client.ts` (dominio separado, nunca se mezcla
+  con el BCC para cálculo/conversión). Cadena de fuentes: proxy (opcional) →
+  `api.cubanomic.com` (widget público de elToque; sin key ni VPN, usa la mediana
+  de la ventana 07:00→07:00) → `tasas.eltoque.com/v1/trmi` directo.
+- `EXPO_PUBLIC_ELTOQUE_API_KEY` es **opcional** (solo respaldo directo);
+  `EXPO_PUBLIC_ELTOQUE_PROXY_URL` es opcional y tiene prioridad. Ver `.env.sample`.
+
 ## Build & Deploy
 
 - EAS configured in `eas.json`

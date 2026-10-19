@@ -37,6 +37,16 @@ function installFetch(handler: Handler): string[] {
   const calls: string[] = [];
   global.fetch = jest.fn(async (url: unknown) => {
     const u = String(url);
+    if (u.includes('api.cubanomic.com')) {
+      // La cadena intenta primero el widget público; aquí se fuerza el fallback
+      // al trmi directo para no alterar las aserciones sobre date_from/date_to.
+      return {
+        status: 404,
+        ok: false,
+        headers: { get: () => null },
+        json: async () => ({}),
+      };
+    }
     const m = u.match(/date_from=([^&]*)/);
     const day = m ? decodeURIComponent(m[1]).split(' ')[0] : 'unknown';
     calls.push(day);
