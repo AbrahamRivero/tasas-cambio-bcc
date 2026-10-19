@@ -12,9 +12,12 @@ const ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
   USD: 'logo-usd',
   MLC: 'card',
   EUR: 'earth',
+  CAD: 'leaf',
+  CLA: 'cash',
   BTC: 'logo-bitcoin',
   TRX: 'flash',
   USDT_TRC20: 'wallet',
+  ZELLE: 'send',
 };
 
 export const ElToqueRateCard: React.FC<{ rate: ElToqueRate }> = ({ rate }) => {

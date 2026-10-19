@@ -31,6 +31,12 @@ describe('isValidElToqueTasas', () => {
     expect(isValidElToqueTasas({ USD: '780' })).toBe(false);
     expect(isValidElToqueTasas({ USD: NaN })).toBe(false);
   });
+  test('las series propias de cubanomic (CAD/CLA) no condicionan el TRMI directo', () => {
+    // El trmi directo no publica CAD/CLA: si llegaran vacías no deben tirar el día.
+    const withExtras = { ...raw, tasas: { ...raw.tasas, CAD: null, CLA: null } };
+    expect(isValidElToqueTasas(withExtras.tasas as Record<string, unknown>)).toBe(true);
+    expect(mapElToqueToRates(withExtras as never, 'x', '2026-10-01')).toHaveLength(6);
+  });
 });
 
 describe('mapElToqueToRates', () => {
@@ -71,6 +77,17 @@ describe('buildCompareRows', () => {
     const codes = rows.map((r) => r.code);
     expect(codes).toEqual(expect.arrayContaining(['USD', 'MLC', 'EUR']));
     expect(codes).not.toContain('BTC');
+    // Invariante de dominio: las series sin equivalente BCC (cripto y canal
+    // Zelle) jamás entran al lado-a-lado, ni siquiera si el mapa las trae.
+    const withExtras = [
+      ...informal,
+      { code: 'ZELLE' as const, name: 'Dólar vía Zelle', value: 795, source: 'ELTOQUE' as const, date: '2026-10-11', fetchedAt: 'x' },
+      { code: 'CAD' as const, name: 'Dólar canadiense', value: 500, source: 'ELTOQUE' as const, date: '2026-10-11', fetchedAt: 'x' },
+    ];
+    const extended = buildCompareRows(bcc, withExtras).map((r) => r.code as string);
+    expect(extended).not.toContain('ZELLE');
+    expect(extended).not.toContain('CAD');
+    expect(extended).toEqual(['USD', 'MLC', 'EUR']);
     const usd = rows.find((r) => r.code === 'USD')!;
     expect(usd.bccValue).toBe(100);
     expect(usd.elToqueValue).toBe(780);

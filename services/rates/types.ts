@@ -34,21 +34,43 @@ export interface ElToqueRawResponse {
   tasas: Record<string, unknown>;
 }
 
-export const ELTOQUE_CODES = ['USD', 'MLC', 'EUR', 'BTC', 'TRX', 'USDT_TRC20'] as const;
+export const ELTOQUE_CODES = [
+  'USD',
+  'MLC',
+  'EUR',
+  'CAD',
+  'CLA',
+  'BTC',
+  'TRX',
+  'USDT_TRC20',
+  // Zelle llega por un endpoint aparte (canal de pago, no moneda del TRMI),
+  // así que se presenta al final. Ver mapCubanomicZelleToRate.
+  'ZELLE',
+] as const;
 export type ElToqueCode = (typeof ELTOQUE_CODES)[number];
-/** Claves tal como las envía la API (ECU = euro, unidad monetaria europea). */
+/** Claves del TRMI directo (ECU = euro, unidad monetaria europea). */
 const ELTOQUE_RAW_KEYS = ['USD', 'MLC', 'ECU', 'BTC', 'TRX', 'USDT_TRC20'] as const;
+/**
+ * Claves del `statistics` de cubanomic: el TRMI más series propias de esa
+ * fuente (CAD, Clásica). Se validan y mapean aparte porque el respaldo directo
+ * no publica estas series: un CAD no numérico ahí no debe tirar el día entero.
+ */
+const CUBANOMIC_RAW_KEYS = ['USD', 'MLC', 'ECU', 'CAD', 'CLA', 'BTC', 'TRX', 'USDT_TRC20'] as const;
 /** Traducción clave cruda -> código normalizado. */
 const RAW_TO_CODE: Record<string, ElToqueCode> = {
   USD: 'USD',
   MLC: 'MLC',
   ECU: 'EUR',
+  CAD: 'CAD',
+  CLA: 'CLA',
   BTC: 'BTC',
   TRX: 'TRX',
   USDT_TRC20: 'USDT_TRC20',
 };
 
 export interface ElToqueRate {
+  /** Código normalizado. ZELLE es un canal de pago (dólar vía Zelle), no una
+   * moneda del TRMI, pero se cotiza en CUP como el resto de la fuente informal. */
   code: ElToqueCode;
   name: string;
   /** Valor en CUP según mercado informal. No comparable con tasa BCC. */
@@ -107,9 +129,12 @@ const ELTOQUE_NAMES: Record<ElToqueCode, string> = {
   USD: 'Dólar',
   MLC: 'MLC',
   EUR: 'Euro',
+  CAD: 'Dólar canadiense',
+  CLA: 'Clásica',
   BTC: 'Bitcoin',
   TRX: 'Tron',
   USDT_TRC20: 'Tether',
+  ZELLE: 'Dólar vía Zelle',
 };
 
 /**
@@ -165,12 +190,29 @@ export function isCubanomicXRates(x: unknown): x is CubanomicXRates {
   return true;
 }
 
+/** Clave de la serie del dólar pagado por Zelle (endpoint filtrado por pm). */
+const CUBANOMIC_ZELLE_RAW_KEY = 'USD_Zelle.CUP';
+
 /**
- * statistics -> ElToqueRate[] usando la mediana (avg de respaldo).
+ * Valor de una estadística de cubanomic: la mediana (avg de respaldo).
  * `allowEmpty`: una ventana sin mensajes (count_messages 0) devuelve la
  * mediana arrastrada de días previos; solo se acepta para la ventana de hoy
  * (tasa vigente), nunca para rellenar días históricos.
  */
+function readCubanomicStat(stat: unknown, allowEmpty: boolean): number | null {
+  if (!stat || typeof stat !== 'object') return null;
+  const st = stat as Record<string, unknown>;
+  if (!allowEmpty && !(isFiniteNumber(st.count_messages) && st.count_messages > 0)) return null;
+  if (isFiniteNumber(st.median) && st.median > 0) return st.median;
+  if (isFiniteNumber(st.avg) && st.avg > 0) return st.avg;
+  return null;
+}
+
+function makeRate(code: ElToqueCode, value: number, day: string, fetchedAt: string): ElToqueRate {
+  return { code, name: ELTOQUE_NAMES[code], value, source: 'ELTOQUE', date: day, fetchedAt };
+}
+
+/** statistics -> ElToqueRate[] (mediana; ver readCubanomicStat). */
 export function mapCubanomicToRates(
   raw: CubanomicXRates,
   day: string,
@@ -180,29 +222,30 @@ export function mapCubanomicToRates(
   if (!isCubanomicXRates(raw)) return [];
   const stats = raw.statistics as Record<string, unknown>;
   const out: ElToqueRate[] = [];
-  for (const rawKey of ELTOQUE_RAW_KEYS) {
-    const s = stats[rawKey];
-    if (!s || typeof s !== 'object') continue;
-    const st = s as Record<string, unknown>;
-    if (!allowEmpty && !(isFiniteNumber(st.count_messages) && st.count_messages > 0)) continue;
-    const value =
-      isFiniteNumber(st.median) && st.median > 0
-        ? st.median
-        : isFiniteNumber(st.avg) && st.avg > 0
-          ? st.avg
-          : null;
+  for (const rawKey of CUBANOMIC_RAW_KEYS) {
+    const value = readCubanomicStat(stats[rawKey], allowEmpty);
     if (value === null) continue;
-    const code = RAW_TO_CODE[rawKey];
-    out.push({
-      code,
-      name: ELTOQUE_NAMES[code],
-      value,
-      source: 'ELTOQUE',
-      date: day,
-      fetchedAt,
-    });
+    out.push(makeRate(RAW_TO_CODE[rawKey], value, day, fetchedAt));
   }
   return out;
+}
+
+/**
+ * Serie del dólar pagado por Zelle. Es un canal de pago, no una moneda del
+ * TRMI: cubanomic la sirve en un endpoint aparte (x-rates-filter-by-pm con
+ * `payment_method=Zelle&x_cur=CUP`) bajo la única clave `USD_Zelle.CUP`.
+ * Misma mediana y mismo gate de actividad que el resto de series.
+ */
+export function mapCubanomicZelleToRate(
+  raw: CubanomicXRates,
+  day: string,
+  fetchedAt: string,
+  allowEmpty = false,
+): ElToqueRate | null {
+  if (!isCubanomicXRates(raw)) return null;
+  const stats = raw.statistics as Record<string, unknown>;
+  const value = readCubanomicStat(stats[CUBANOMIC_ZELLE_RAW_KEY], allowEmpty);
+  return value === null ? null : makeRate('ZELLE', value, day, fetchedAt);
 }
 
 export function buildCompareRows(

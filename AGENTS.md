@@ -42,8 +42,16 @@
   con el BCC para cálculo/conversión). Cadena de fuentes: proxy (opcional) →
   `api.cubanomic.com` (widget público de elToque; sin key ni VPN, usa la mediana
   de la ventana 07:00→07:00) → `tasas.eltoque.com/v1/trmi` directo.
+- Series mapeadas (lista blanca en `services/rates/types.ts`): USD, MLC, EUR,
+  CAD (dólar canadiense), CLA (Clásica), BTC, TRX, USDT_TRC20 y el dólar vía
+  **Zelle**, que cubanomic sirve en un endpoint aparte
+  (`/api/v2/x-rates-filter-by-pm?payment_method=Zelle&x_cur=CUP`, clave
+  `USD_Zelle.CUP`) y solo se pide para la ventana vigente. El resto de claves
+  del `statistics` (AUD, LTC, …) se descartan: muchas traen valores centinela.
 - `EXPO_PUBLIC_ELTOQUE_API_KEY` es **opcional** (solo respaldo directo);
   `EXPO_PUBLIC_ELTOQUE_PROXY_URL` es opcional y tiene prioridad. Ver `.env.sample`.
+  El hop de proxy y el `trmi` directo sirven el juego del TRMI (sin CAD/CLA/Zelle);
+  esas series extra solo llegan por cubanomic.
 
 ## Build & Deploy
 

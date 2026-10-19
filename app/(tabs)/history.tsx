@@ -220,6 +220,9 @@ export default function HistoricoScreen() {
               ) : null}
               {localHist.map((day) => (
                 <AppleSection key={day.date} title={day.date}>
+                  {/* Filtro deliberado: la serie histórica solo muestra las monedas
+                      comparables con el BCC (USD/MLC/EUR). Las demás series
+                      informales (CAD, CLA, BTC, Zelle, …) viven en el tab elToque. */}
                   {day.rates.filter((r) => r.code === 'USD' || r.code === 'MLC' || r.code === 'EUR').map((r) => (
                     <AppleCell
                       key={r.code}

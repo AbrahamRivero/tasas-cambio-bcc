@@ -5,6 +5,10 @@
 // Endpoints:
 //   GET /trmi-daily?date=YYYY-MM-DD -> { date, rates: ElToqueRate[], fetchedAt }
 //   * date default = hoy UTC. Rango interno 00:00:01 -> 23:59:01 (<24h).
+//   * NOTA: este hop sirve SOLO el juego del TRMI (ALLOW). Las series extra de
+//     cubanomic (CAD, CLA, dólar vía Zelle) viven en `services/rates/types.ts`
+//     y NO viajan por el proxy: con EXPO_PUBLIC_ELTOQUE_PROXY_URL configurado
+//     esas tarjetas no aparecen en la app.
 //
 // Env (wrangler secret, nunca en repo):
 //   ELTOQUE_API_KEY = <JWT elToque>  (rotar: el token pegado en chat está comprometido)

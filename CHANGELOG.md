@@ -15,6 +15,11 @@ y este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
   `proxy (opcional) → cubanomic (widget) → trmi directo`. El valor publicado es
   la mediana diaria de la ventana 07:00→07:00 (se exige actividad en la ventana
   salvo para la tasa vigente del día).
+- Nuevas monedas informales de cubanomic: **CAD** (dólar canadiense), **CLA**
+  (Clásica) y el **dólar vía Zelle** (`ZELLE`). Zelle se pide a un endpoint
+  aparte (`/api/v2/x-rates-filter-by-pm?payment_method=Zelle&x_cur=CUP`) y solo
+  para la ventana vigente, de forma que un fallo suyo no afecta a la tasa
+  principal.
 
 ### Cambiado
 

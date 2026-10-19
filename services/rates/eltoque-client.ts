@@ -2,6 +2,9 @@
 // Cadena de fuentes: proxy (opcional) → cubanomic (el widget de elToque en
 // iframe.cubanomic.com; sin key, misma TRMI) → trmi directo con
 // EXPO_PUBLIC_ELTOQUE_API_KEY como respaldo.
+// cubanomic publica además series que el TRMI directo no trae (CAD, Clásica,
+// dólar vía Zelle): se mapean solo las monedas de la lista blanca de types.ts.
+// El hop de proxy y el trmi directo sirven el juego del TRMI (sin CAD/CLA/Zelle).
 
 import { TtlCache, TTL_ELTOQUE_MS } from './cache';
 import { storageGet, storageSet } from './storage';
@@ -9,8 +12,10 @@ import {
   isCubanomicXRates,
   isElToqueResponse,
   mapCubanomicToRates,
+  mapCubanomicZelleToRate,
   mapElToqueToRates,
   type ElToqueDaily,
+  type ElToqueRate,
 } from './types';
 
 const STORAGE_KEY = 'eltoque:daily:latest';
@@ -69,15 +74,31 @@ const DIRECT_HOST = 'https://tasas.eltoque.com/v1/trmi';
 // bundle público (iframe.cubanomic.com/js/app.*.js, parámetro `token:`),
 // actualizar esta constante y publicar una release (no es configurable en runtime).
 const CUBANOMIC_HOST = 'https://api.cubanomic.com/api/v1/x-rates';
+// La serie del dólar pagado por Zelle no está en el TRMI: vive en un endpoint
+// aparte (solo v2) filtrado por método de pago.
+const CUBANOMIC_ZELLE_HOST = 'https://api.cubanomic.com/api/v2/x-rates-filter-by-pm';
+const CUBANOMIC_ZELLE_PAYMENT_METHOD = 'Zelle';
+const CUBANOMIC_ZELLE_X_CUR = 'CUP';
 const CUBANOMIC_ORIGIN = 'https://iframe.cubanomic.com';
 const CUBANOMIC_TOKEN = 'hRaCcY78gXC3k9WRv01pR7V1fgSxlg';
+const CUBANOMIC_HEADERS = {
+  accept: 'application/json, text/plain, */*',
+  Origin: CUBANOMIC_ORIGIN,
+};
 const CUBANOMIC_TIMEOUT_MS = 10 * 1000;
+// El extra de Zelle es opcional y no debe retrasar las series principales:
+// va secuencial y con un timeout corto (ver fetchViaCubanomic).
+const CUBANOMIC_ZELLE_TIMEOUT_MS = 2500;
 // La ventana diaria de elToque va de las 07:00 a las 07:00 del día siguiente.
 const CUBANOMIC_WINDOW_START = '07:00:00';
 // Enfriamiento propio del widget ante 429: el token es compartido, así que no
 // conviene insistir en cada refresh (ni siquiera con forceRefresh).
 const CUBANOMIC_BACKOFF_DEFAULT_S = 60;
 const CUBANOMIC_BACKOFF_MAX_S = 600;
+// Enfriamiento corto y SEPARADO para el extra de Zelle: si ese endpoint falla
+// se omite la tarjeta sin tocar el hop principal (que ya sirvió la tasa).
+const CUBANOMIC_ZELLE_BACKOFF_DEFAULT_S = 300;
+const CUBANOMIC_ZELLE_BACKOFF_MAX_S = 900;
 
 /** Día ISO siguiente (fin de la ventana 07:00→07:00 de cubanomic). */
 function nextIsoDay(day: string): string {
@@ -95,6 +116,20 @@ function isValidIsoDay(day: string): boolean {
 
 /** Clasificación del fallo de red (para diagnóstico en UI). */
 export type ElToqueNetKind = 'timeout' | 'network' | null;
+
+/**
+ * Query común de cubanomic: ventana diaria 07:00→07:00 + token del widget.
+ * (El widget en modo "tiempo real" omite las fechas y obtiene un valor
+ * intradía; aquí se pide siempre la ventana publicada, igual que el TRMI.)
+ */
+function cubanomicWindowQuery(day: string): string {
+  return (
+    `msg=false` +
+    `&date_from=${encodeURIComponent(`${day} ${CUBANOMIC_WINDOW_START}`)}` +
+    `&date_to=${encodeURIComponent(`${nextIsoDay(day)} ${CUBANOMIC_WINDOW_START}`)}` +
+    `&token=${encodeURIComponent(CUBANOMIC_TOKEN)}`
+  );
+}
 
 export interface ElToqueRequestOptions {
   forceRefresh?: boolean;
@@ -140,6 +175,8 @@ export class ElToqueClient {
   private retryAfterUntil = 0;
   /** Enfriamiento propio del hop cubanomic (token compartido: no insistir). */
   private cubanomicBackoffUntil = 0;
+  /** Enfriamiento del extra de Zelle: opcional, no debe penalizar al hop principal. */
+  private cubanomicZelleBackoffUntil = 0;
   /** Fallos recientes por día (caché negativa 60s: evita quemar la cuota reintentando). */
   private failCache = new Map<string, { ts: number; error: string; status: number | null }>();
 
@@ -321,20 +358,19 @@ export class ElToqueClient {
    * cubanomic (widget público de elToque): mismo TRMI, sin key ni VPN.
    * Ventana `day 07:00:00` → `day+1 07:00:00` (fin de ventana = el día que
    * elToque publica como TRMI). El valor publicado es la mediana del día.
+   * A la ventana vigente se le suma la serie del canal Zelle (ver
+   * fetchCubanomicZelle).
    */
   private async fetchViaCubanomic(day: string, signal?: AbortSignal): Promise<ElToqueDaily | null> {
-    const url =
-      `${CUBANOMIC_HOST}?msg=false` +
-      `&date_from=${encodeURIComponent(`${day} ${CUBANOMIC_WINDOW_START}`)}` +
-      `&date_to=${encodeURIComponent(`${nextIsoDay(day)} ${CUBANOMIC_WINDOW_START}`)}` +
-      `&token=${encodeURIComponent(CUBANOMIC_TOKEN)}`;
-    const headers = {
-      accept: 'application/json, text/plain, */*',
-      Origin: CUBANOMIC_ORIGIN,
-    };
+    const url = `${CUBANOMIC_HOST}?${cubanomicWindowQuery(day)}`;
     let res: Response | null = null;
     try {
-      res = await this.fetchWithTimeout(url, { headers }, signal, CUBANOMIC_TIMEOUT_MS);
+      res = await this.fetchWithTimeout(
+        url,
+        { headers: CUBANOMIC_HEADERS },
+        signal,
+        CUBANOMIC_TIMEOUT_MS,
+      );
     } catch (e) {
       this.lastNetKind = this.isTimeoutError(e) ? 'timeout' : 'network';
       this.lastError =
@@ -383,19 +419,76 @@ export class ElToqueClient {
       return null;
     }
     const fetchedAt = new Date().toISOString();
+    const isCurrentWindow = day === todayIsoDate();
     const rates = mapCubanomicToRates(
       json,
       day,
       fetchedAt,
       // Solo la ventana vigente (hoy) puede venir sin mensajes: cubanomic
       // devuelve entonces la mediana arrastrada de días previos.
-      day === todayIsoDate(),
+      isCurrentWindow,
     );
     if (rates.length === 0) {
       this.lastError = 'Sin tasas informales para esa fecha.';
       return null;
     }
+    // La serie del dólar vía Zelle solo se pide para la ventana vigente: es una
+    // vista del mercado de hoy y pedirla también para el relleno histórico
+    // duplicaría el coste (cuota limitada) sin que el histórico la muestre.
+    // Va secuencial a propósito: `fetchWithTimeout` comparte `timedOutFlag` en la
+    // instancia, así que dos peticiones concurrentes se pisarían ese diagnóstico.
+    if (isCurrentWindow) {
+      const zelle = await this.fetchCubanomicZelle(day, isCurrentWindow, signal);
+      if (zelle) return { date: day, rates: [...rates, zelle], fetchedAt };
+    }
     return { date: day, rates, fetchedAt };
+  }
+
+  /**
+   * Serie del dólar pagado por Zelle (`x-rates-filter-by-pm`, solo v2).
+   * Es un extra best-effort: si falla se omite la tarjeta de Zelle sin tocar el
+   * diagnóstico ni el enfriamiento del hop principal (que ya respondió bien en
+   * esta misma pasada). Un timeout más corto evita retrasar las series que sí
+   * llegaron por el hop principal.
+   */
+  private async fetchCubanomicZelle(
+    day: string,
+    isCurrentWindow: boolean,
+    signal?: AbortSignal,
+  ): Promise<ElToqueRate | null> {
+    if (Date.now() < this.cubanomicZelleBackoffUntil) return null;
+    const url =
+      `${CUBANOMIC_ZELLE_HOST}?${cubanomicWindowQuery(day)}` +
+      `&payment_method=${encodeURIComponent(CUBANOMIC_ZELLE_PAYMENT_METHOD)}` +
+      `&x_cur=${encodeURIComponent(CUBANOMIC_ZELLE_X_CUR)}`;
+    try {
+      const res = await this.fetchWithTimeout(
+        url,
+        { headers: CUBANOMIC_HEADERS },
+        signal,
+        CUBANOMIC_ZELLE_TIMEOUT_MS,
+      );
+      if (!res) return null;
+      if (typeof __DEV__ !== 'undefined' && __DEV__ && !process.env.JEST_WORKER_ID) {
+        console.log(`[elToque/cubanomic/zelle] ${day} -> HTTP ${res.status}`);
+      }
+      if (!res.ok) {
+        // 429 o 5xx de este extra: enfriarlo sin tocar el hop principal.
+        this.applyCubanomicZelleBackoff(res);
+        return null;
+      }
+      const json: unknown = await res.json();
+      // La serie de Zelle es un bloque `statistics` con una única clave.
+      if (!isCubanomicXRates(json)) return null;
+      return mapCubanomicZelleToRate(json, day, new Date().toISOString(), isCurrentWindow);
+    } catch (e) {
+      if (typeof __DEV__ !== 'undefined' && __DEV__ && !process.env.JEST_WORKER_ID) {
+        console.log(`[elToque/cubanomic/zelle] ${day} -> error: ${(e as Error)?.message ?? e}`);
+      }
+      // Fallo de red/timeout de un extra opcional: no repetirlo en cada refresh.
+      this.applyCubanomicZelleBackoff(null);
+      return null;
+    }
   }
 
   /** Enfriamiento del hop cubanomic (honra Retry-After, tope 10 min). */
@@ -407,6 +500,20 @@ export class ElToqueClient {
         ? Math.min(secs, CUBANOMIC_BACKOFF_MAX_S)
         : CUBANOMIC_BACKOFF_DEFAULT_S;
     this.cubanomicBackoffUntil = Date.now() + wait * 1000;
+  }
+
+  /**
+   * Enfriamiento corto del extra de Zelle (honra Retry-After, tope 15 min).
+   * `res` null = fallo de red/timeout: se usa el valor por defecto.
+   */
+  private applyCubanomicZelleBackoff(res: Response | null): void {
+    const raw = res?.headers.get('Retry-After') ?? res?.headers.get('retry-after');
+    const secs = raw ? Number.parseInt(raw, 10) : CUBANOMIC_ZELLE_BACKOFF_DEFAULT_S;
+    const wait =
+      Number.isFinite(secs) && secs > 0
+        ? Math.min(secs, CUBANOMIC_ZELLE_BACKOFF_MAX_S)
+        : CUBANOMIC_ZELLE_BACKOFF_DEFAULT_S;
+    this.cubanomicZelleBackoffUntil = Date.now() + wait * 1000;
   }
 
   private async fetchViaProxy(base: string, day: string, signal?: AbortSignal): Promise<ElToqueDaily | null> {
@@ -554,6 +661,7 @@ export class ElToqueClient {
     this.inflight.clear();
     this.retryAfterUntil = 0;
     this.cubanomicBackoffUntil = 0;
+    this.cubanomicZelleBackoffUntil = 0;
   }
 }
 

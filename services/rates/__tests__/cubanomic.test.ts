@@ -1,6 +1,7 @@
 // Verifica la fuente cubanomic (widget público de elToque): ventana diaria
 // 07:00→07:00, mediana como valor, header Origin obligatorio, sin key ni VPN,
-// y el fallback al trmi directo con la key opcional.
+// las series extra (CAD, Clásica y el dólar vía Zelle) y el fallback al trmi
+// directo con la key opcional.
 
 jest.mock('@react-native-async-storage/async-storage', () => {
   const store = new Map<string, string>();
@@ -20,7 +21,12 @@ jest.mock('@react-native-async-storage/async-storage', () => {
   };
 });
 
-import { isCubanomicXRates, mapCubanomicToRates } from '../types';
+import {
+  isCubanomicXRates,
+  mapCubanomicToRates,
+  mapCubanomicZelleToRate,
+  type ElToqueRate,
+} from '../types';
 
 const dayISO = (back: number) =>
   new Date(Date.now() - back * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -34,6 +40,12 @@ const stats = (usd: number, count: number) => ({
   USDT_TRC20: { median: 900, avg: 900, count_messages: count, count_values: count },
 });
 
+/** Series que solo publica cubanomic (no vienen en el trmi directo). */
+const extraStats = (count: number) => ({
+  CAD: { median: 500, avg: 500, count_messages: count, count_values: count },
+  CLA: { median: 760, avg: 755, count_messages: count, count_values: count },
+});
+
 /** Respuesta real de cubanomic: `date` es SIEMPRE hoy, no el día pedido. */
 const cuboPayload = (usd: number, count = 10) => ({
   date: dayISO(0),
@@ -41,6 +53,17 @@ const cuboPayload = (usd: number, count = 10) => ({
   minutes: 0,
   seconds: 0,
   statistics: stats(usd, count),
+});
+
+/** Serie del dólar pagado por Zelle: clave única `USD_Zelle.CUP`. */
+const zellePayload = (median: number, count: number) => ({
+  date: dayISO(0),
+  hour: 10,
+  minutes: 0,
+  seconds: 0,
+  statistics: {
+    'USD_Zelle.CUP': { median, avg: median - 2, count_messages: count, count_values: count },
+  },
 });
 
 /** Respuesta del trmi directo (respaldo con key). */
@@ -61,6 +84,7 @@ interface Request {
 
 function installFetch(routes: {
   cubanomic?: (day: string) => RouteResult;
+  zelle?: (day: string) => RouteResult;
   direct?: (day: string) => RouteResult;
 }): Request[] {
   const requests: Request[] = [];
@@ -70,8 +94,9 @@ function installFetch(routes: {
     requests.push({ url: u, headers });
     const m = u.match(/date_from=([^&]*)/);
     const day = m ? decodeURIComponent(m[1]).split(' ')[0] : 'unknown';
+    const isZelle = u.includes('x-rates-filter-by-pm');
     const isCubo = u.includes('api.cubanomic.com');
-    const handler = isCubo ? routes.cubanomic : routes.direct;
+    const handler = isZelle ? routes.zelle : isCubo ? routes.cubanomic : routes.direct;
     const h: RouteResult = handler ? handler(day) : { status: 404, body: {} };
     if ('reject' in h) throw new Error('Network request failed');
     return {
@@ -110,7 +135,9 @@ function sameRegistryClient(withKey: boolean) {
 const usdValue = (rates: { code: string; value: number }[]) =>
   rates.find((r) => r.code === 'USD')?.value;
 const cuboRequest = (requests: Request[]) =>
-  requests.find((r) => r.url.includes('api.cubanomic.com'));
+  requests.find((r) => r.url.includes('api.cubanomic.com') && !r.url.includes('x-rates-filter-by-pm'));
+const zelleRequest = (requests: Request[]) =>
+  requests.find((r) => r.url.includes('x-rates-filter-by-pm'));
 const directRequest = (requests: Request[]) =>
   requests.find((r) => r.url.includes('tasas.eltoque.com'));
 
@@ -123,6 +150,26 @@ describe('mapCubanomicToRates', () => {
     expect(rates.find((r) => (r.code as string) === 'ECU')).toBeUndefined();
     // La API responde date:hoy; la fecha válida es la pedida.
     expect(rates.every((r) => r.date === '2026-10-17')).toBe(true);
+  });
+
+  test('incluye las series extra de cubanomic (CAD y Clásica) con actividad', () => {
+    const raw = {
+      ...cuboPayload(815),
+      statistics: { ...stats(815, 10), ...extraStats(10) },
+    };
+    const rates = mapCubanomicToRates(raw as never, '2026-10-17', 'x');
+    expect(rates.map((r) => r.code)).toEqual([
+      'USD',
+      'MLC',
+      'EUR',
+      'CAD',
+      'CLA',
+      'BTC',
+      'TRX',
+      'USDT_TRC20',
+    ]);
+    expect(rates.find((r) => r.code === 'CLA')?.name).toBe('Clásica');
+    expect(rates.find((r) => r.code === 'CAD')?.value).toBe(500);
   });
 
   test('cae a la media si falta la mediana', () => {
@@ -149,6 +196,32 @@ describe('mapCubanomicToRates', () => {
   });
 });
 
+describe('mapCubanomicZelleToRate', () => {
+  test('mapea USD_Zelle.CUP al código ZELLE con el día pedido', () => {
+    const rate = mapCubanomicZelleToRate(zellePayload(795, 4) as never, '2026-10-17', 'x');
+    expect(rate).toMatchObject({
+      code: 'ZELLE',
+      value: 795,
+      source: 'ELTOQUE',
+      date: '2026-10-17',
+    });
+    expect(rate?.name).toBe('Dólar vía Zelle');
+  });
+
+  test('respeta el gate de actividad salvo allowEmpty (ventana vigente)', () => {
+    expect(mapCubanomicZelleToRate(zellePayload(795, 0) as never, '2026-10-17', 'x')).toBeNull();
+    expect(
+      mapCubanomicZelleToRate(zellePayload(795, 0) as never, '2026-10-17', 'x', true)?.value,
+    ).toBe(795);
+  });
+
+  test('fail-closed si la serie no viene o el payload es inválido', () => {
+    // El TRMI normal no trae la clave de Zelle.
+    expect(mapCubanomicZelleToRate(cuboPayload(785) as never, '2026-10-17', 'x')).toBeNull();
+    expect(mapCubanomicZelleToRate(null as never, 'x', 'y')).toBeNull();
+  });
+});
+
 describe('ElToqueClient vía cubanomic', () => {
   test('pide la ventana 07:00→07:00 del día con el Origin del widget', async () => {
     const requests = installFetch({ cubanomic: () => ({ status: 200, body: cuboPayload(785) }) });
@@ -166,6 +239,75 @@ describe('ElToqueClient vía cubanomic', () => {
     expect(req.headers.Origin).toBe('https://iframe.cubanomic.com');
     // Sin key no se toca el trmi directo.
     expect(directRequest(requests)).toBeUndefined();
+    // Día histórico: no se pide la serie de Zelle (solo ventana vigente).
+    expect(zelleRequest(requests)).toBeUndefined();
+  });
+
+  test('la ventana vigente añade el dólar vía Zelle desde el endpoint filtrado', async () => {
+    const requests = installFetch({
+      cubanomic: () => ({ status: 200, body: cuboPayload(815) }),
+      zelle: () => ({ status: 200, body: zellePayload(795, 4) }),
+    });
+    const client = freshClient(false);
+    const res = await client.getDaily(dayISO(0));
+    expect(res.ok).toBe(true);
+    expect(res.data?.date).toBe(dayISO(0));
+    // La serie de Zelle se suma al final del mismo día.
+    const zelle = res.data!.rates.find((r: ElToqueRate) => r.code === 'ZELLE');
+    expect(zelle?.value).toBe(795);
+    expect(zelle?.date).toBe(dayISO(0));
+    expect(res.data!.rates).toHaveLength(7);
+    // Orden de presentación: Zelle va al final (llega por un endpoint aparte).
+    const codes = res.data!.rates.map((r: ElToqueRate) => r.code);
+    expect(codes[codes.length - 1]).toBe('ZELLE');
+
+    const req = zelleRequest(requests)!;
+    expect(req.url).toContain('/api/v2/x-rates-filter-by-pm');
+    expect(req.url).toContain('payment_method=Zelle');
+    expect(req.url).toContain('x_cur=CUP');
+    expect(req.url).toMatch(/date_from=[^&]*%2007%3A00%3A00/);
+    expect(req.url).toMatch(/date_to=[^&]*%2007%3A00%3A00/);
+    expect(req.url).toMatch(/[?&]token=[A-Za-z0-9_-]+/);
+    expect(req.headers.Origin).toBe('https://iframe.cubanomic.com');
+  });
+
+  test('si Zelle falla, el día se sirve igual sin esa tarjeta', async () => {
+    installFetch({
+      cubanomic: () => ({ status: 200, body: cuboPayload(815) }),
+      zelle: () => ({ status: 500, body: {} }),
+    });
+    const client = freshClient(false);
+    const res = await client.getDaily(dayISO(0));
+    expect(res.ok).toBe(true);
+    expect(res.data!.rates).toHaveLength(6);
+    expect(res.data!.rates.find((r: ElToqueRate) => r.code === 'ZELLE')).toBeUndefined();
+  });
+
+  test('un fallo de red del extra de Zelle no rompe el día', async () => {
+    installFetch({
+      cubanomic: () => ({ status: 200, body: cuboPayload(815) }),
+      zelle: () => ({ reject: true }),
+    });
+    const client = freshClient(false);
+    const res = await client.getDaily(dayISO(0));
+    expect(res.ok).toBe(true);
+    expect(usdValue(res.data!.rates)).toBe(815);
+    expect(res.data!.rates.find((r: ElToqueRate) => r.code === 'ZELLE')).toBeUndefined();
+  });
+
+  test('un 429 del extra de Zelle lo enfría sin tocar el hop principal', async () => {
+    const requests = installFetch({
+      cubanomic: () => ({ status: 200, body: cuboPayload(815) }),
+      zelle: () => ({ status: 429, body: {} }),
+    });
+    const client = freshClient(false);
+    const first = await client.getDaily(dayISO(0));
+    expect(first.ok).toBe(true);
+    expect(usdValue(first.data!.rates)).toBe(815);
+    // Refresh con forceRefresh: el hop principal se repite, el extra no.
+    await client.getDaily(dayISO(0), { forceRefresh: true });
+    expect(requests.filter((r) => r.url.includes('x-rates-filter-by-pm'))).toHaveLength(1);
+    expect(requests.filter((r) => r.url.includes('api.cubanomic.com'))).toHaveLength(3);
   });
 
   test('rechaza una fecha sintácticamente válida pero no calendárica', async () => {
